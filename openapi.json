@@ -1,0 +1,2677 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "description": "Endpoint público sin prefijo /api/v1 usado por healthchecks de Docker y balanceadores.",
+        "operationId": "AppController_getHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Servicio y base de datos operativos ({ status: \"ok\" })"
+          }
+        },
+        "summary": "Verificar estado de salud de la API y conexión con PostgreSQL",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/v1/auth/registro": {
+      "post": {
+        "description": "Normaliza el correo (minúsculas, sin espacios), valida política de contraseña (15–128 caracteres, rechaza comunes) y crea usuario + credencial + rol APRENDIZ en una sola transacción.",
+        "operationId": "AuthController_registro",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistroDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Cuenta creada exitosamente"
+          },
+          "400": {
+            "description": "Datos inválidos o contraseña débil"
+          },
+          "409": {
+            "description": "Correo ya registrado (CORREO_YA_REGISTRADO)"
+          }
+        },
+        "summary": "Registrar nueva cuenta con rol APRENDIZ y credencial Argon2id",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "description": "Si la cuenta no tiene 2FA confirmado, crea sesión opaca (200 OK) y emite cookie HttpOnly. Si tiene 2FA confirmado, crea desafío de 5 minutos y responde 202 Accepted sin crear sesión.",
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sesión creada y cookie HttpOnly emitida"
+          },
+          "202": {
+            "description": "Se requiere segundo factor TOTP (devuelve desafio_id)"
+          },
+          "401": {
+            "description": "Credenciales inválidas (401 genérico CREDENCIALES_INVALIDAS)"
+          },
+          "429": {
+            "description": "Límite de intentos excedido (LIMITE_PETICIONES_AUTH)"
+          }
+        },
+        "summary": "Iniciar sesión con correo y contraseña",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/2fa/verificar": {
+      "post": {
+        "description": "Verifica el desafío de 5 minutos y el código TOTP con protección anti-replay (ultimo_paso_totp). Al superar 5 fallos invalida el desafío y audita cuenta_bloqueada_2fa.",
+        "operationId": "AuthController_verificar2fa",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Verificar2faDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sesión creada con verificado_2fa=true y cookie HttpOnly emitida"
+          },
+          "401": {
+            "description": "Código inválido, reutilizado (CODIGO_TOTP_REUTILIZADO) o desafío expirado (DESAFIO_EXPIRADO)"
+          },
+          "429": {
+            "description": "Cuenta bloqueada por fallos de 2FA (CUENTA_BLOQUEADA_2FA) o rate limit"
+          }
+        },
+        "summary": "Consumir desafío de 2FA con código TOTP y crear sesión verificada",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/2fa/iniciar": {
+      "post": {
+        "description": "Genera secreto TOTP cifrado con AES-256-GCM (confirmado_en = NULL) y devuelve otpauth_uri y clave_base32 una sola vez.",
+        "operationId": "AuthController_iniciar2fa",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Secreto TOTP generado y URI otpauth devuelta una sola vez"
+          },
+          "409": {
+            "description": "El segundo factor ya está confirmado"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Iniciar enrolamiento de segundo factor TOTP",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/2fa/confirmar": {
+      "post": {
+        "description": "Verifica el primer código TOTP, fija confirmado_en, marca verificado_2fa=true en la sesión actual y audita segundo_factor_activado.",
+        "operationId": "AuthController_confirmar2fa",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Confirmar2faDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Segundo factor activado y sesión elevada"
+          },
+          "401": {
+            "description": "Código TOTP inválido"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Confirmar activación de 2FA con el primer código TOTP",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/2fa": {
+      "delete": {
+        "description": "Verifica la contraseña actual, borra físicamente la fila de segundo_factor y audita segundo_factor_desactivado. Prohibido para administradores (C-01).",
+        "operationId": "AuthController_desactivar2fa",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Desactivar2faDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Segundo factor eliminado físicamente"
+          },
+          "403": {
+            "description": "Prohibido desactivar 2FA en cuentas administrativas (SEGUNDO_FACTOR_OBLIGATORIO_ADMIN)"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Desactivar segundo factor TOTP (solo aprendices)",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "description": "Marca revocada_en en la sesión actual y limpia la cookie de sesión.",
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Sesión revocada exitosamente"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Cerrar sesión actual con revocación inmediata",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/usuarios/me": {
+      "get": {
+        "description": "Devuelve datos mínimos de la cuenta y roles vigentes (RN-12).",
+        "operationId": "UsersController_obtenerPerfilPropio",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Perfil propio del usuario"
+          },
+          "401": {
+            "description": "Sesión inválida o expirada"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Consultar perfil propio del usuario autenticado",
+        "tags": [
+          "Usuarios"
+        ]
+      },
+      "patch": {
+        "description": "El correo electrónico no es editable en autoservicio (REQ-F-07).",
+        "operationId": "UsersController_actualizarPerfilPropio",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActualizarPerfilDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Perfil actualizado"
+          },
+          "400": {
+            "description": "Intento de editar correo o datos inválidos"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Actualizar perfil propio (nombre de visualización y ruta preferida)",
+        "tags": [
+          "Usuarios"
+        ]
+      }
+    },
+    "/api/v1/catalogo": {
+      "get": {
+        "description": "Devuelve metadatos paginados por cursor sin cargar el contenido JSONB completo. Si hay sesión activa permite filtrar por avance (pendiente/completada).",
+        "operationId": "CatalogController_listarCatalogo",
+        "parameters": [
+          {
+            "name": "tema_id",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar por identificador de tema",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "dificultad",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar por dificultad de la unidad publicada",
+            "schema": {
+              "example": "basico",
+              "type": "string",
+              "enum": [
+                "basico",
+                "intermedio",
+                "especializado"
+              ]
+            }
+          },
+          {
+            "name": "tipo",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar por tipo de actividad formativa",
+            "schema": {
+              "example": "aprende",
+              "type": "string",
+              "enum": [
+                "aprende",
+                "normamatch",
+                "casotech"
+              ]
+            }
+          },
+          {
+            "name": "ruta_id",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar por unidades pertenecientes a una ruta formativa",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "avance",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar por estado de avance del usuario autenticado",
+            "schema": {
+              "example": "pendiente",
+              "type": "string",
+              "enum": [
+                "pendiente",
+                "completada"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Término de búsqueda en título y descripción (ignora acentos y mayúsculas)",
+            "schema": {
+              "maxLength": 120,
+              "example": "etica",
+              "type": "string"
+            }
+          },
+          {
+            "name": "busqueda",
+            "required": false,
+            "in": "query",
+            "description": "Alias de q para búsqueda de texto",
+            "schema": {
+              "maxLength": 120,
+              "example": "privacidad",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Cursor opaco de paginación (base64url)",
+            "schema": {
+              "example": "eyJpZCI6IjEwIn0",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Cantidad máxima de elementos por página (1 a 100, por defecto 20)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado del catálogo"
+          }
+        },
+        "summary": "Listar catálogo de unidades formativas publicadas con filtros y búsqueda",
+        "tags": [
+          "Catálogo"
+        ]
+      }
+    },
+    "/api/v1/catalogo/unidades/{id}": {
+      "get": {
+        "description": "Proyecta únicamente enunciados, secciones y opciones; nunca expone respuestas correctas ni ponderaciones.",
+        "operationId": "CatalogController_obtenerUnidadPublicada",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID de la unidad formativa",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle de unidad publicada y fuentes"
+          },
+          "404": {
+            "description": "Unidad no encontrada o no publicada"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Abrir detalle de unidad publicada con contenido proyectado para aprendiz",
+        "tags": [
+          "Catálogo"
+        ]
+      }
+    },
+    "/api/v1/catalogo/unidades/{id}/muestra": {
+      "get": {
+        "description": "Solo accesible para unidades publicadas con muestra_publica=true. No crea sesión ni guarda progreso.",
+        "operationId": "CatalogMuestraController_obtenerMuestraPublica",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID de la unidad con muestra pública",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Muestra pública proyectada sin respuestas"
+          },
+          "404": {
+            "description": "Unidad no encontrada o no habilitada como muestra pública"
+          }
+        },
+        "summary": "Consultar muestra pública de una unidad sin iniciar sesión (RN-03)",
+        "tags": [
+          "Catálogo"
+        ]
+      }
+    },
+    "/api/v1/editorial/unidades": {
+      "post": {
+        "operationId": "EditorialController_crearUnidad",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrearUnidadEditorialDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Unidad creada sin versión publicada aún"
+          },
+          "403": {
+            "description": "Requiere rol ADMIN_CONTENIDO y 2FA verificado"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Crear unidad formativa base (solo ADMIN_CONTENIDO)",
+        "tags": [
+          "Editorial"
+        ]
+      }
+    },
+    "/api/v1/editorial/versiones": {
+      "post": {
+        "description": "Crea versión con estado=borrador y calcula su huella SHA-256 inicial sin alterar unidad.version_publicada_id (REQ-F-74).",
+        "operationId": "EditorialController_crearVersionBorrador",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrearVersionEditorialDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Borrador creado con huella SHA-256"
+          },
+          "422": {
+            "description": "Contenido excede 1 MiB o fuentes inexistentes"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Crear nueva versión en borrador sin mover el puntero público",
+        "tags": [
+          "Editorial"
+        ]
+      }
+    },
+    "/api/v1/editorial/versiones/{id}": {
+      "patch": {
+        "description": "Modifica contenido, metadatos o fuentes de una versión no publicada, incrementando revision y recalculando huella_actual.",
+        "operationId": "EditorialController_actualizarVersionBorrador",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID de la versión en borrador",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActualizarVersionEditorialDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Borrador actualizado"
+          },
+          "409": {
+            "description": "Versión publicada inmutable (RN-18) o revisión optimista desactualizada"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Editar versión en borrador con control de revisión optimista",
+        "tags": [
+          "Editorial"
+        ]
+      }
+    },
+    "/api/v1/editorial/versiones/{id}/revisiones": {
+      "post": {
+        "description": "Calcula la huella SHA-256 sobre contenido + metadatos + referencias exactas. Si el resultado es aprobada, valida íntegramente el contenido JSONB.",
+        "operationId": "EditorialController_registrarRevisionEditorial",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID de la versión editorial",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrearRevisionEditorialDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Revisión registrada con huella_revisada"
+          },
+          "422": {
+            "description": "Contenido inválido al intentar aprobar (RN-15)"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Registrar dictamen de revisión editorial con huella SHA-256",
+        "tags": [
+          "Editorial"
+        ]
+      }
+    },
+    "/api/v1/editorial/versiones/{id}/publicar": {
+      "post": {
+        "description": "En una transacción: bloquea la versión, valida contenido JSONB, verifica que exista revisión aprobada vigente cuya huella coincida con la versión actual, marca estado=publicado y mueve unidad.version_publicada_id.",
+        "operationId": "EditorialController_publicarVersion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID de la versión editorial a publicar",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Versión publicada y puntero público actualizado"
+          },
+          "422": {
+            "description": "Sin revisión aprobada (REVISION_APROBADA_REQUERIDA) o versión editada tras aprobar (HUELLA_EDITORIAL_DESACTUALIZADA)"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Publicar versión atómicamente verificando huella SHA-256 aprobada",
+        "tags": [
+          "Editorial"
+        ]
+      }
+    },
+    "/api/v1/editorial/unidades/{id}/desactivar": {
+      "patch": {
+        "description": "Marca unidad.activa=false para impedir nuevos intentos, manteniendo intactas versiones, créditos e intentos históricos (REQ-F-58).",
+        "operationId": "EditorialController_desactivarUnidad",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID de la unidad a desactivar",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unidad desactivada"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Desactivar unidad formativa conservando versiones e historial",
+        "tags": [
+          "Editorial"
+        ]
+      }
+    },
+    "/api/v1/intentos": {
+      "post": {
+        "description": "Bloquea la fila usuario para calcular el ordinal sin carreras, fija la version_unidad publicada actual y proyecta el contenido sin respuestas.",
+        "operationId": "AttemptsController_crearIntento",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrearIntentoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Intento creado o recuperado por UUID"
+          },
+          "404": {
+            "description": "Unidad no encontrada o desactivada"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Iniciar o recuperar idempotentemente un intento con UUID y versión fija",
+        "tags": [
+          "Intentos"
+        ]
+      }
+    },
+    "/api/v1/intentos/me/historial": {
+      "get": {
+        "operationId": "AttemptsController_listarHistorial",
+        "parameters": [
+          {
+            "name": "unidad_id",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar historial por identificador de unidad formativa",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Cursor opaco de paginación del historial",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Cantidad de elementos por página (1 a 100, por defecto 20)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cabeceras de intentos paginadas por cursor"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Listar historial paginado de intentos propios (cabeceras sin recorrido)",
+        "tags": [
+          "Intentos"
+        ]
+      }
+    },
+    "/api/v1/intentos/{id}": {
+      "get": {
+        "operationId": "AttemptsController_obtenerIntento",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "UUID del intento",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle del intento y versión fijada proyectada"
+          },
+          "404": {
+            "description": "Intento no encontrado o ajeno"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Reanudar o consultar un intento propio con la versión exacta fijada",
+        "tags": [
+          "Intentos"
+        ]
+      }
+    },
+    "/api/v1/intentos/{id}/paso": {
+      "patch": {
+        "description": "Valida la transición contra la versión fijada y actualiza recorrido incrementando revision. Devuelve 409 si la revisión no coincide.",
+        "operationId": "AttemptsController_guardarPaso",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "UUID del intento",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuardarPasoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Paso guardado y revisión incrementada"
+          },
+          "409": {
+            "description": "Revisión desactualizada (REVISION_DESACTUALIZADA) o intento ya finalizado"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Guardar avance parcial en un intento en curso con revisión optimista",
+        "tags": [
+          "Intentos"
+        ]
+      }
+    },
+    "/api/v1/intentos/{id}/finalizar": {
+      "post": {
+        "description": "Bloquea usuario e intento; si ya está finalizado devuelve el resultado confirmado (idempotente). Calcula la calificación en servidor (Aprende NULL, NormaMatch 100*aciertos/total, CasoTech 100*suma/(2*decisiones)) y acredita puntos en primera finalización.",
+        "operationId": "AttemptsController_finalizarIntento",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "UUID del intento",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinalizarIntentoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado, crédito e insignias otorgadas"
+          },
+          "422": {
+            "description": "Recorrido incompleto o inválido para finalizar"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Finalizar intento transaccionalmente (nota en servidor + crédito + insignias)",
+        "tags": [
+          "Intentos"
+        ]
+      }
+    },
+    "/api/v1/intentos/{id}/resultado": {
+      "get": {
+        "description": "Devuelve la calificación y las explicaciones de la versión exacta que cursó el intento, aunque la unidad tenga una versión posterior publicada.",
+        "operationId": "AttemptsController_obtenerResultado",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "UUID del intento finalizado",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado histórico con explicaciones de la versión fijada"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Consultar resultado histórico y retroalimentación de la versión cursada",
+        "tags": [
+          "Intentos"
+        ]
+      }
+    },
+    "/api/v1/gamificacion/me/puntos": {
+      "get": {
+        "description": "Suma global por cuenta de los créditos confirmados (10 por Aprende, 20 por NormaMatch/CasoTech, una sola vez por unidad; RN-06, RN-24).",
+        "operationId": "GamificationController_obtenerPuntos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Saldo total y desglose de créditos por unidad"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Consultar saldo global de puntos derivados de credito_unidad",
+        "tags": [
+          "Gamificación"
+        ]
+      }
+    },
+    "/api/v1/gamificacion/me/insignias": {
+      "get": {
+        "operationId": "GamificationController_obtenerInsignias",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Lista de insignias obtenidas por la cuenta"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Listar insignias obtenidas con su origen verificable (intento o inscripción)",
+        "tags": [
+          "Gamificación"
+        ]
+      }
+    },
+    "/api/v1/gamificacion/me/rango": {
+      "get": {
+        "operationId": "GamificationController_obtenerRango",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Rango derivado del saldo de puntos actual"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Consultar rango actual y progreso hacia siguiente umbral (100 y 300 puntos)",
+        "tags": [
+          "Gamificación"
+        ]
+      }
+    },
+    "/api/v1/rutas": {
+      "get": {
+        "operationId": "RoutesController_listarRutas",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Lista de rutas disponibles"
+          }
+        },
+        "summary": "Listar rutas formativas activas con su versión vigente",
+        "tags": [
+          "Rutas"
+        ]
+      }
+    },
+    "/api/v1/rutas/me/cambiar": {
+      "post": {
+        "description": "Crea o reutiliza la inscripción contra la versión actual de la ruta elegida sin migrar ni borrar inscripciones previas (REQ-F-70, RN-08).",
+        "operationId": "RoutesController_cambiarRuta",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CambiarRutaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Inscripción activa actualizada"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Cambiar de ruta formativa conservando inscripciones anteriores por separado",
+        "tags": [
+          "Rutas"
+        ]
+      }
+    },
+    "/api/v1/rutas/me/progreso": {
+      "get": {
+        "description": "Calcula créditos sobre unidades obligatorias de la versión inscrita. Si el denominador es 0 devuelve estado=\"Sin actividades\" y porcentaje=null (nunca 100 % falso; RN-23).",
+        "operationId": "RoutesController_obtenerProgreso",
+        "parameters": [
+          {
+            "name": "ruta_id",
+            "required": false,
+            "in": "query",
+            "description": "Identificador de ruta para consultar la inscripción más reciente a esa ruta",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "inscripcion_id",
+            "required": false,
+            "in": "query",
+            "description": "Identificador exacto de inscripcion_ruta a consultar",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Progreso derivado de la inscripción y listado de inscripciones"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Consultar progreso derivado contra la versión de ruta asignada a la inscripción",
+        "tags": [
+          "Rutas"
+        ]
+      }
+    },
+    "/api/v1/rutas/{id}/elegir": {
+      "post": {
+        "operationId": "RoutesController_elegirRuta",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID de la ruta a elegir",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inscripción a la ruta confirmada"
+          },
+          "404": {
+            "description": "Ruta no encontrada o inactiva"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Elegir una ruta formativa (crea inscripción contra su versión actual si falta)",
+        "tags": [
+          "Rutas"
+        ]
+      }
+    },
+    "/api/v1/grupos": {
+      "post": {
+        "operationId": "GroupsController_crearGrupo",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrearGrupoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Grupo creado"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Crear grupo académico (solo ADMIN_TECNICO)",
+        "tags": [
+          "Grupos"
+        ]
+      },
+      "get": {
+        "operationId": "GroupsController_listarGrupos",
+        "parameters": [
+          {
+            "name": "activo",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar por estado activo/inactivo del grupo",
+            "schema": {
+              "example": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "periodo",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar por periodo académico",
+            "schema": {
+              "maxLength": 64,
+              "example": "2026-2",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Cursor opaco de paginación",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Límite de resultados por página (1 a 100, por defecto 20)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado de grupos"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Listar grupos con conteo de integrantes activos (ADMIN_TECNICO y ADMIN_CONTENIDO)",
+        "tags": [
+          "Grupos"
+        ]
+      }
+    },
+    "/api/v1/grupos/{id}/desactivar": {
+      "patch": {
+        "operationId": "GroupsController_desactivarGrupo",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID del grupo",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Grupo desactivado"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Desactivar grupo conservando su historial de membresías y reportes",
+        "tags": [
+          "Grupos"
+        ]
+      }
+    },
+    "/api/v1/grupos/{id}/integrantes": {
+      "get": {
+        "operationId": "GroupsController_listarIntegrantes",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID del grupo",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "solo_activos",
+            "required": false,
+            "in": "query",
+            "description": "Si es true, devuelve solo membresías abiertas (salida IS NULL)",
+            "schema": {
+              "example": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Cursor opaco de paginación",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Límite de resultados por página (1 a 100, por defecto 20)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Integrantes paginados por cursor"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Listar integrantes e intervalos temporales de membresía de un grupo",
+        "tags": [
+          "Grupos"
+        ]
+      },
+      "post": {
+        "description": "Bloquea la fila grupo con FOR UPDATE antes de comprobar solapamientos y respeta el índice único parcial uq_membresia_grupo_abierta (RN-28).",
+        "operationId": "GroupsController_agregarIntegrante",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID del grupo",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgregarIntegranteGrupoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Membresía registrada"
+          },
+          "409": {
+            "description": "Intervalo solapado o doble membresía abierta (MEMBRESIA_SOLAPADA)"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Agregar o reingresar integrante con intervalo semiabierto [ingreso, salida)",
+        "tags": [
+          "Grupos"
+        ]
+      }
+    },
+    "/api/v1/grupos/{id}/integrantes/{usuarioId}/retirar": {
+      "patch": {
+        "operationId": "GroupsController_retirarIntegrante",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID del grupo",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "usuarioId",
+            "required": true,
+            "in": "path",
+            "description": "ID del usuario integrante a retirar",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetirarIntegranteGrupoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Intervalo de membresía cerrado"
+          },
+          "404": {
+            "description": "No existe membresía abierta para esa pareja grupo-usuario"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Cerrar la membresía abierta de un integrante en el grupo",
+        "tags": [
+          "Grupos"
+        ]
+      }
+    },
+    "/api/v1/reportes/grupos/{id}": {
+      "get": {
+        "description": "Ejecuta una sola consulta SQL con CTEs (elegibles -> mejores -> promedios -> conteos). Verifica pertenencia temporal con EXISTS sobre [ingreso, salida) en intento.finalizacion, toma la mejor nota por (usuario, version_id) y suprime el promedio (null) cuando una celda tiene menos de 5 participantes. Aprende devuelve promedio=\"No aplica\".",
+        "operationId": "ReportsController_obtenerReporteGrupo",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID del grupo a reportar",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "desde",
+            "required": true,
+            "in": "query",
+            "description": "Inicio del periodo semiabierto [desde, hasta) sobre intento.finalizacion (ISO 8601 UTC)",
+            "schema": {
+              "example": "2026-10-01T00:00:00.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "hasta",
+            "required": true,
+            "in": "query",
+            "description": "Fin exclusivo del periodo semiabierto [desde, hasta) sobre intento.finalizacion (ISO 8601 UTC)",
+            "schema": {
+              "example": "2026-12-01T00:00:00.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "unidad_id",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar intentos elegibles por unidad formativa antes de agrupar",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "ruta_id",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar intentos elegibles por ruta formativa antes de agrupar",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reporte agregado por versión (nunca devuelve filas individuales)"
+          },
+          "400": {
+            "description": "Periodo [desde, hasta) inválido"
+          },
+          "404": {
+            "description": "Grupo no encontrado"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Generar reporte agregado de grupo por periodo y versión con supresión < 5 (A50, RN-13)",
+        "tags": [
+          "Reportes"
+        ]
+      }
+    },
+    "/api/v1/admin/cuentas": {
+      "get": {
+        "description": "Nunca expone hashes Argon2id, secretos TOTP, hashes de sesión ni recorridos de actividades (RN-12, C-06).",
+        "operationId": "AdminAccountsController_listarCuentas",
+        "parameters": [
+          {
+            "name": "activo",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar por estado activo/inactivo de la cuenta",
+            "schema": {
+              "example": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "rol",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar por código de rol asignado",
+            "schema": {
+              "example": "APRENDIZ",
+              "type": "string",
+              "enum": [
+                "APRENDIZ",
+                "ADMIN_CONTENIDO",
+                "ADMIN_TECNICO"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Cursor opaco de paginación",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Límite de cuentas por página (1 a 100, por defecto 20)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado de cuentas"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Listar cuentas con proyección mínima y paginación por cursor (solo ADMIN_TECNICO)",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/cuentas/{id}/activar": {
+      "patch": {
+        "operationId": "AdminAccountsController_activarCuenta",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID del usuario a activar",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cuenta activada y auditada"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Activar una cuenta de usuario",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/cuentas/{id}/desactivar": {
+      "patch": {
+        "description": "Bloquea guarda_integridad (admin_tecnico_activo) con FOR UPDATE antes de contar técnicos activos; rechaza con 409 si es el último ADMIN_TECNICO activo.",
+        "operationId": "AdminAccountsController_desactivarCuenta",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID del usuario a desactivar",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cuenta desactivada y sesiones revocadas"
+          },
+          "409": {
+            "description": "Prohibido desactivar el último ADMIN_TECNICO activo (ULTIMO_ADMIN_TECNICO_ACTIVO)"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Desactivar cuenta revocando todas sus sesiones en la misma transacción (RN-29)",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/roles/asignar": {
+      "post": {
+        "operationId": "AdminRolesController_asignarRol",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CambiarRolUsuarioDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rol asignado y auditado"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Asignar rol del catálogo fijo a un usuario (solo ADMIN_TECNICO)",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/roles/retirar": {
+      "post": {
+        "description": "Bloquea guarda_integridad con FOR UPDATE antes de contar técnicos activos y rechaza con 409 si dejaría al sistema sin ADMIN_TECNICO activo.",
+        "operationId": "AdminRolesController_retirarRol",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CambiarRolUsuarioDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rol retirado y auditado"
+          },
+          "409": {
+            "description": "Prohibido retirar el último ADMIN_TECNICO activo (ULTIMO_ADMIN_TECNICO_ACTIVO)"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Retirar rol de un usuario con guarda de último ADMIN_TECNICO activo (RN-29)",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/auditoria": {
+      "get": {
+        "description": "Opera en modo solo lectura a través de la conexión eticore_auditoria (AUDIT_DATA_SOURCE), paginando descendentemente sobre auditoria o auditoria_bd.",
+        "operationId": "AdminAuditController_listarAuditoria",
+        "parameters": [
+          {
+            "name": "fuente",
+            "required": false,
+            "in": "query",
+            "description": "Fuente de auditoría: aplicacion (tabla auditoria) o bd (tabla auditoria_bd alimentada por triggers)",
+            "schema": {
+              "default": "aplicacion",
+              "example": "aplicacion",
+              "type": "string",
+              "enum": [
+                "aplicacion",
+                "bd"
+              ]
+            }
+          },
+          {
+            "name": "accion",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar por código de acción (en aplicacion) u operación SQL (en bd)",
+            "schema": {
+              "maxLength": 64,
+              "example": "publicar_version",
+              "type": "string"
+            }
+          },
+          {
+            "name": "actor_id",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar por identificador del actor (solo en fuente=aplicacion)",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "recurso_tipo",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar por tipo de recurso (en aplicacion) o nombre de tabla (en bd)",
+            "schema": {
+              "maxLength": 40,
+              "example": "version_unidad",
+              "type": "string"
+            }
+          },
+          {
+            "name": "resultado",
+            "required": false,
+            "in": "query",
+            "description": "Filtrar por resultado de la acción (solo en fuente=aplicacion)",
+            "schema": {
+              "example": "exitoso",
+              "type": "string",
+              "enum": [
+                "exitoso",
+                "rechazado",
+                "fallido"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Cursor opaco de paginación descendente",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Límite de registros por página (1 a 100, por defecto 20)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Registros de auditoría paginados por cursor"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Consultar bitácora de auditoría de aplicación o de BD (solo ADMIN_TECNICO)",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/legal/aviso": {
+      "get": {
+        "description": "Por defecto devuelve el aviso_privacidad más reciente con su texto íntegro y huella SHA-256 (REQ-F-12, REQ-F-73).",
+        "operationId": "LegalController_obtenerAvisoVigente",
+        "parameters": [
+          {
+            "name": "tipo",
+            "required": false,
+            "in": "query",
+            "description": "Tipo de documento legal a consultar (por defecto aviso_privacidad)",
+            "schema": {
+              "default": "aviso_privacidad",
+              "example": "aviso_privacidad",
+              "type": "string",
+              "enum": [
+                "aviso_privacidad",
+                "terminos",
+                "consentimiento"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Versión vigente del documento legal"
+          }
+        },
+        "summary": "Consultar la versión vigente de un documento legal sin iniciar sesión",
+        "tags": [
+          "Legal"
+        ]
+      }
+    },
+    "/api/v1/legal/documentos/versiones": {
+      "post": {
+        "operationId": "LegalController_publicarVersionDocumento",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicarVersionDocumentoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Versión legal publicada y auditada"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Publicar nueva versión inmutable de documento legal con huella SHA-256 (solo ADMIN_TECNICO)",
+        "tags": [
+          "Legal"
+        ]
+      }
+    },
+    "/api/v1/legal/eventos": {
+      "post": {
+        "description": "Registra presentación de aviso, aceptación de términos o otorgamiento/retiro de consentimiento sin sobrescribir eventos previos.",
+        "operationId": "LegalController_registrarEventoLegal",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrarEventoLegalDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Evento legal registrado o recuperado idempotentemente"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Registrar evento legal idempotente por clave_operacion y versión exacta",
+        "tags": [
+          "Legal"
+        ]
+      }
+    },
+    "/api/v1/legal/mis-eventos": {
+      "get": {
+        "operationId": "LegalController_listarMisEventos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Eventos legales y estado efectivo por finalidad"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Listar historial de eventos legales propios y estado efectivo de consentimientos",
+        "tags": [
+          "Legal"
+        ]
+      }
+    },
+    "/api/v1/legal/solicitudes": {
+      "post": {
+        "operationId": "LegalController_crearSolicitudPrivacidad",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrearSolicitudPrivacidadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Solicitud registrada en estado recibida"
+          },
+          "400": {
+            "description": "Rechazo por intento de adjuntar identificaciones (ADJUNTO_IDENTIFICACION_PROHIBIDO)"
+          }
+        },
+        "security": [
+          {
+            "cookie-sesion": []
+          }
+        ],
+        "summary": "Registrar solicitud de privacidad con expediente mínimo sin adjuntar identificaciones (RN-12)",
+        "tags": [
+          "Legal"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Eticore Backend API",
+    "description": "API REST de Eticore — Plataforma educativa de Ética y Legislación en Tecnologías de la Información. Autenticación mediante sesión opaca en servidor (cookie HttpOnly, sin JWT) y segundo factor TOTP (RFC 6238) obligatorio para administradores.",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Verificación de salud del servicio y base de datos"
+    },
+    {
+      "name": "Auth",
+      "description": "Registro, inicio/cierre de sesión opaca y segundo factor TOTP (2FA)"
+    },
+    {
+      "name": "Usuarios",
+      "description": "Autoservicio de perfil propio del usuario autenticado"
+    },
+    {
+      "name": "Catálogo",
+      "description": "Consulta de unidades formativas publicadas, búsqueda y muestras públicas"
+    },
+    {
+      "name": "Editorial",
+      "description": "Flujo editorial (borradores, revisión con huella SHA-256, publicación atómica y baja)"
+    },
+    {
+      "name": "Intentos",
+      "description": "Ejecución de actividades (Aprende, NormaMatch, CasoTech), pasos con revisión optimista y finalización"
+    },
+    {
+      "name": "Gamificación",
+      "description": "Puntos, insignias y rango derivados de créditos por unidad"
+    },
+    {
+      "name": "Rutas",
+      "description": "Elección y cambio de ruta formativa con progreso derivado por versión inscrita"
+    },
+    {
+      "name": "Grupos",
+      "description": "Gestión de grupos e integrantes con intervalos temporales semiabiertos [ingreso, salida)"
+    },
+    {
+      "name": "Reportes",
+      "description": "Reporte agregado por grupo y versión con supresión de promedio para celdas < 5 participantes"
+    },
+    {
+      "name": "Admin",
+      "description": "Administración técnica de cuentas, asignación de roles con guarda de último técnico y lectura de auditoría"
+    },
+    {
+      "name": "Legal",
+      "description": "Documentos legales versionados, registro idempotente de eventos legales y solicitudes de privacidad"
+    }
+  ],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "cookie-sesion": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "eticore_sid",
+        "description": "Cookie de sesión opaca en servidor (HttpOnly, Secure, SameSite=Lax, Path=/api)"
+      }
+    },
+    "schemas": {
+      "RegistroDto": {
+        "type": "object",
+        "properties": {
+          "nombre_visualizacion": {
+            "type": "string",
+            "description": "Nombre de visualización del usuario (2 a 80 caracteres)",
+            "example": "Aprendiz Eticore",
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "correo": {
+            "type": "string",
+            "description": "Correo electrónico (se normaliza a minúsculas sin espacios)",
+            "example": "aprendiz@eticore.edu.mx"
+          },
+          "contrasena": {
+            "type": "string",
+            "description": "Contraseña de 15 a 128 caracteres (admite espacios, rechaza contraseñas comunes)",
+            "example": "frase de prueba segura eticore 2026",
+            "minLength": 15,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "nombre_visualizacion",
+          "correo",
+          "contrasena"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "correo": {
+            "type": "string",
+            "description": "Correo electrónico de la cuenta",
+            "example": "aprendiz@eticore.edu.mx"
+          },
+          "contrasena": {
+            "type": "string",
+            "description": "Contraseña de la cuenta",
+            "example": "frase de prueba segura eticore 2026"
+          }
+        },
+        "required": [
+          "correo",
+          "contrasena"
+        ]
+      },
+      "Verificar2faDto": {
+        "type": "object",
+        "properties": {
+          "desafio_id": {
+            "type": "string",
+            "description": "Token opaco del desafío de 5 minutos emitido por POST /api/v1/auth/login (HTTP 202)",
+            "example": "a1b2c3d4e5f6..."
+          },
+          "codigo_totp": {
+            "type": "string",
+            "description": "Código TOTP vigente de 6 u 8 dígitos",
+            "example": "123456"
+          },
+          "codigo": {
+            "type": "string",
+            "description": "Alias de codigo_totp (código TOTP de 6 u 8 dígitos)",
+            "example": "123456"
+          }
+        },
+        "required": [
+          "desafio_id"
+        ]
+      },
+      "Confirmar2faDto": {
+        "type": "object",
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "description": "Primer código TOTP generado por la app autenticadora (6 u 8 dígitos)",
+            "example": "123456"
+          },
+          "codigo_totp": {
+            "type": "string",
+            "description": "Alias de codigo para confirmar el alta de 2FA",
+            "example": "123456"
+          }
+        }
+      },
+      "Desactivar2faDto": {
+        "type": "object",
+        "properties": {
+          "contrasena": {
+            "type": "string",
+            "description": "Contraseña actual del usuario para confirmar la baja del segundo factor",
+            "example": "frase de prueba segura eticore 2026"
+          }
+        }
+      },
+      "ActualizarPerfilDto": {
+        "type": "object",
+        "properties": {
+          "nombre_visualizacion": {
+            "type": "string",
+            "description": "Nuevo nombre de visualización (2 a 80 caracteres)",
+            "example": "Aprendiz Actualizado",
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "ruta_preferida_id": {
+            "type": "object",
+            "description": "Identificador de la ruta preferida (o null para limpiar)",
+            "example": 1,
+            "nullable": true
+          }
+        }
+      },
+      "CrearUnidadEditorialDto": {
+        "type": "object",
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "description": "Tipo de unidad educativa",
+            "enum": [
+              "aprende",
+              "normamatch",
+              "casotech"
+            ],
+            "example": "normamatch"
+          },
+          "muestra_publica": {
+            "type": "boolean",
+            "description": "Indica si la unidad publicada es accesible como muestra pública sin sesión",
+            "example": false,
+            "default": false
+          }
+        },
+        "required": [
+          "tipo"
+        ]
+      },
+      "FuenteCitaEditorialDto": {
+        "type": "object",
+        "properties": {
+          "clave_local": {
+            "type": "string",
+            "description": "Clave local de la referencia citada en el contenido JSONB (p. ej. REF1)",
+            "example": "REF1",
+            "maxLength": 40
+          },
+          "fuente_version_id": {
+            "type": "number",
+            "description": "Identificador de la edición inmutable en fuente_version",
+            "example": 1
+          },
+          "revisada_en": {
+            "type": "string",
+            "description": "Fecha en que se verificó la vigencia de la fuente (ISO 8601 YYYY-MM-DD)",
+            "example": "2026-11-18"
+          }
+        },
+        "required": [
+          "clave_local",
+          "fuente_version_id",
+          "revisada_en"
+        ]
+      },
+      "CrearVersionEditorialDto": {
+        "type": "object",
+        "properties": {
+          "unidad_id": {
+            "type": "number",
+            "description": "Identificador de la unidad a la que pertenece el nuevo borrador",
+            "example": 1
+          },
+          "titulo": {
+            "type": "string",
+            "description": "Título de la versión (máximo 200 caracteres)",
+            "example": "Minimización de Datos en Bitácoras",
+            "maxLength": 200
+          },
+          "descripcion": {
+            "type": "string",
+            "description": "Descripción de la unidad formativa",
+            "example": "Actividad sobre principios de privacidad y protección de credenciales."
+          },
+          "tema_id": {
+            "type": "number",
+            "description": "Identificador del tema en el catálogo",
+            "example": 1
+          },
+          "dificultad": {
+            "type": "string",
+            "description": "Nivel de dificultad",
+            "enum": [
+              "basico",
+              "intermedio",
+              "especializado"
+            ],
+            "example": "basico"
+          },
+          "esquema_version": {
+            "type": "number",
+            "description": "Versión del esquema JSON del contenido (por defecto 1)",
+            "example": 1,
+            "default": 1
+          },
+          "contenido": {
+            "type": "object",
+            "description": "Documento JSONB del contenido según (tipo, esquema_version), máximo 1 MiB",
+            "additionalProperties": true,
+            "example": {
+              "situaciones": [
+                {
+                  "id": "s1",
+                  "enunciado": "Evaluación de logs en producción",
+                  "opciones": [
+                    {
+                      "id": "op1",
+                      "texto": "Omitir contraseñas y tokens"
+                    },
+                    {
+                      "id": "op2",
+                      "texto": "Registrar el cuerpo completo"
+                    }
+                  ],
+                  "respuesta_correcta": "op1",
+                  "explicacion": "RN-17 prohíbe registrar secretos en claro.",
+                  "referencia_local": "REF1"
+                }
+              ]
+            }
+          },
+          "fuentes": {
+            "description": "Referencias locales de fuentes asociadas a esta versión",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FuenteCitaEditorialDto"
+            }
+          }
+        },
+        "required": [
+          "unidad_id",
+          "titulo",
+          "descripcion",
+          "tema_id",
+          "dificultad",
+          "contenido"
+        ]
+      },
+      "ActualizarVersionEditorialDto": {
+        "type": "object",
+        "properties": {
+          "revision_esperada": {
+            "type": "number",
+            "description": "Revisión optimista esperada del borrador (409 si no coincide)",
+            "example": 1
+          },
+          "titulo": {
+            "type": "string",
+            "description": "Nuevo título del borrador",
+            "example": "Minimización de Datos — Edición Revisada",
+            "maxLength": 200
+          },
+          "descripcion": {
+            "type": "string",
+            "description": "Nueva descripción del borrador",
+            "example": "Descripción actualizada del borrador antes de revisión."
+          },
+          "tema_id": {
+            "type": "number",
+            "description": "Identificador del tema",
+            "example": 1
+          },
+          "dificultad": {
+            "type": "string",
+            "description": "Nivel de dificultad",
+            "enum": [
+              "basico",
+              "intermedio",
+              "especializado"
+            ],
+            "example": "intermedio"
+          },
+          "esquema_version": {
+            "type": "number",
+            "description": "Versión del esquema JSON del contenido",
+            "example": 1
+          },
+          "contenido": {
+            "type": "object",
+            "description": "Contenido JSONB actualizado (máximo 1 MiB)",
+            "additionalProperties": true
+          },
+          "fuentes": {
+            "description": "Lista completa de fuentes citadas para reemplazar las de la versión",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FuenteCitaEditorialDto"
+            }
+          }
+        }
+      },
+      "CrearRevisionEditorialDto": {
+        "type": "object",
+        "properties": {
+          "resultado": {
+            "type": "string",
+            "description": "Dictamen de la revisión editorial (calcula y fija la huella SHA-256 del contenido, metadatos y fuentes actuales)",
+            "enum": [
+              "aprobada",
+              "rechazada",
+              "observaciones"
+            ],
+            "example": "aprobada"
+          }
+        },
+        "required": [
+          "resultado"
+        ]
+      },
+      "CrearIntentoDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "UUID v4 generado antes del primer envío para garantizar idempotencia (RN-05)",
+            "example": "550e8400-e29b-41d4-a716-446655440000",
+            "format": "uuid"
+          },
+          "unidad_id": {
+            "type": "number",
+            "description": "Identificador de la unidad formativa publicada a cursar",
+            "example": 1
+          }
+        },
+        "required": [
+          "unidad_id"
+        ]
+      },
+      "DecisionPasoDto": {
+        "type": "object",
+        "properties": {
+          "etapa_id": {
+            "type": "string",
+            "description": "Identificador de la etapa en el grafo CasoTech",
+            "example": "et-1"
+          },
+          "alternativa_id": {
+            "type": "string",
+            "description": "Identificador de la alternativa elegida",
+            "example": "alt-1"
+          }
+        },
+        "required": [
+          "etapa_id",
+          "alternativa_id"
+        ]
+      },
+      "GuardarPasoDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number",
+            "description": "Número de revisión optimista actual del intento (409 si la revisión no coincide)",
+            "example": 1,
+            "minimum": 1
+          },
+          "seccion_id": {
+            "type": "string",
+            "description": "Sección visitada en unidad Aprende",
+            "example": "s1"
+          },
+          "secciones_visitadas": {
+            "description": "Lista de secciones visitadas en unidad Aprende",
+            "example": [
+              "s1",
+              "s2"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "confirmado": {
+            "type": "boolean",
+            "description": "Confirmación explícita de lectura en Aprende (RN-20)",
+            "example": true
+          },
+          "asociaciones": {
+            "type": "object",
+            "description": "Mapa situacion_id -> opcion_id para NormaMatch",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "sit1": "op1"
+            }
+          },
+          "etapa_id": {
+            "type": "string",
+            "description": "Etapa actual en CasoTech (opcional; el servidor valida la etapa esperada)",
+            "example": "et-1"
+          },
+          "alternativa_id": {
+            "type": "string",
+            "description": "Alternativa elegida para la etapa actual en CasoTech",
+            "example": "alt-1"
+          },
+          "decisiones": {
+            "description": "Secuencia de decisiones en CasoTech",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DecisionPasoDto"
+            }
+          },
+          "recorrido": {
+            "type": "object",
+            "description": "Objeto de recorrido parcial (validado por el servidor)",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "revision"
+        ]
+      },
+      "FinalizarIntentoDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number",
+            "description": "Revisión optimista esperada del intento",
+            "example": 1,
+            "minimum": 1
+          },
+          "seccion_id": {
+            "type": "string",
+            "description": "Última sección visitada en Aprende al finalizar",
+            "example": "s1"
+          },
+          "secciones_visitadas": {
+            "description": "Todas las secciones visitadas en Aprende",
+            "example": [
+              "s1",
+              "s2"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "confirmado": {
+            "type": "boolean",
+            "description": "Confirmación explícita obligatoria para completar Aprende (RN-20)",
+            "example": true
+          },
+          "asociaciones": {
+            "type": "object",
+            "description": "Conjunto completo de asociaciones situacion_id -> opcion_id para NormaMatch",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "sit1": "op1",
+              "sit2": "op2"
+            }
+          },
+          "etapa_id": {
+            "type": "string",
+            "description": "Etapa de la última decisión en CasoTech",
+            "example": "et-2"
+          },
+          "alternativa_id": {
+            "type": "string",
+            "description": "Última alternativa elegida que conduce a etapa terminal en CasoTech",
+            "example": "alt-2"
+          },
+          "decisiones": {
+            "description": "Ruta completa de decisiones hasta etapa terminal en CasoTech",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DecisionPasoDto"
+            }
+          },
+          "recorrido": {
+            "type": "object",
+            "description": "Recorrido adicional si se envía junto con la finalización",
+            "additionalProperties": true
+          }
+        }
+      },
+      "CambiarRutaDto": {
+        "type": "object",
+        "properties": {
+          "ruta_id": {
+            "type": "number",
+            "description": "Identificador de la nueva ruta activa a elegir (crea inscripción separada sin migrar ni borrar la anterior)",
+            "example": 2
+          }
+        },
+        "required": [
+          "ruta_id"
+        ]
+      },
+      "CrearGrupoDto": {
+        "type": "object",
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "description": "Nombre del grupo (máximo 120 caracteres)",
+            "example": "Grupo 7A — Ética TI",
+            "maxLength": 120
+          },
+          "periodo": {
+            "type": "string",
+            "description": "Periodo académico o identificador de cohorte (máximo 64 caracteres)",
+            "example": "2026-2",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "nombre",
+          "periodo"
+        ]
+      },
+      "AgregarIntegranteGrupoDto": {
+        "type": "object",
+        "properties": {
+          "usuario_id": {
+            "type": "number",
+            "description": "Identificador del usuario a incorporar al grupo",
+            "example": 5
+          },
+          "ingreso": {
+            "type": "string",
+            "description": "Inicio del intervalo semiabierto [ingreso, salida) en formato ISO 8601 UTC (por defecto instante actual)",
+            "example": "2026-10-01T00:00:00.000Z"
+          },
+          "salida": {
+            "type": "string",
+            "description": "Fin del intervalo semiabierto [ingreso, salida) en formato ISO 8601 UTC (si se omite, membresía abierta)",
+            "example": "2026-12-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "usuario_id"
+        ]
+      },
+      "RetirarIntegranteGrupoDto": {
+        "type": "object",
+        "properties": {
+          "salida": {
+            "type": "string",
+            "description": "Fecha de cierre del intervalo semiabierto [ingreso, salida) en formato ISO 8601 UTC (por defecto instante actual)",
+            "example": "2026-11-18T12:00:00.000Z"
+          }
+        }
+      },
+      "CambiarRolUsuarioDto": {
+        "type": "object",
+        "properties": {
+          "usuario_id": {
+            "type": "number",
+            "description": "Identificador del usuario al que se asignará o retirará el rol",
+            "example": 2
+          },
+          "rol_codigo": {
+            "type": "string",
+            "description": "Código del rol del catálogo fijo",
+            "enum": [
+              "APRENDIZ",
+              "ADMIN_CONTENIDO",
+              "ADMIN_TECNICO"
+            ],
+            "example": "ADMIN_CONTENIDO"
+          },
+          "rol": {
+            "type": "string",
+            "description": "Alias de rol_codigo",
+            "enum": [
+              "APRENDIZ",
+              "ADMIN_CONTENIDO",
+              "ADMIN_TECNICO"
+            ],
+            "example": "ADMIN_CONTENIDO"
+          }
+        },
+        "required": [
+          "usuario_id"
+        ]
+      },
+      "PublicarVersionDocumentoDto": {
+        "type": "object",
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "description": "Tipo de documento legal a publicar",
+            "enum": [
+              "aviso_privacidad",
+              "terminos",
+              "consentimiento"
+            ],
+            "example": "aviso_privacidad"
+          },
+          "texto": {
+            "type": "string",
+            "description": "Texto íntegro de la versión legal (mínimo 10 caracteres; se calcula huella SHA-256 en servidor)",
+            "example": "[PROTOTIPO SINTÉTICO RN-30] Versión actualizada del aviso de privacidad de ejemplo.",
+            "minLength": 10
+          }
+        },
+        "required": [
+          "tipo",
+          "texto"
+        ]
+      },
+      "RegistrarEventoLegalDto": {
+        "type": "object",
+        "properties": {
+          "version_documento_id": {
+            "type": "number",
+            "description": "Identificador de la versión exacta en version_documento",
+            "example": 1
+          },
+          "tipo_evento": {
+            "type": "string",
+            "description": "Tipo de evento legal registrado",
+            "enum": [
+              "aviso_presentado",
+              "terminos_aceptados",
+              "consentimiento_otorgado",
+              "consentimiento_retirado",
+              "consentimiento_rechazado"
+            ],
+            "example": "terminos_aceptados"
+          },
+          "clave_operacion": {
+            "type": "string",
+            "description": "Clave de operación UUID v4 para garantizar idempotencia por usuario",
+            "example": "550e8400-e29b-41d4-a716-446655440000",
+            "format": "uuid"
+          },
+          "canal": {
+            "type": "string",
+            "description": "Canal de origen del evento (por defecto web)",
+            "example": "web",
+            "default": "web",
+            "maxLength": 32
+          },
+          "finalidad_codigo": {
+            "type": "string",
+            "description": "Código de finalidad asociada al consentimiento (cuando aplica)",
+            "example": "metricas_academicas",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "version_documento_id",
+          "tipo_evento",
+          "clave_operacion"
+        ]
+      },
+      "CrearSolicitudPrivacidadDto": {
+        "type": "object",
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "description": "Tipo de solicitud de privacidad (p. ej. acceso, rectificacion, cancelacion, oposicion, supresion)",
+            "example": "acceso",
+            "minLength": 2,
+            "maxLength": 32
+          },
+          "verificacion_minima": {
+            "type": "string",
+            "description": "Nota de verificación mínima sin adjuntar identificaciones ni imágenes en base64 (RN-12)",
+            "example": "Confirmación mediante sesión autenticada vigente",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "tipo"
+        ]
+      }
+    }
+  }
+}

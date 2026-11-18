@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor.js';
 import type { AppConfiguration } from './config/configuration.js';
+import { setupOpenApi } from './config/openapi.config.js';
 
 export function configureApp(app: INestApplication): void {
   const configService = app.get(ConfigService<AppConfiguration, true>);
@@ -20,6 +21,14 @@ export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix('api/v1', { exclude: ['health'] });
   app.use(
     helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:'],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+        },
+      },
       frameguard: { action: 'deny' },
       noSniff: true,
       referrerPolicy: { policy: 'no-referrer' },
@@ -48,4 +57,5 @@ export function configureApp(app: INestApplication): void {
   );
   app.useGlobalInterceptors(new RequestLoggingInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
+  setupOpenApi(app);
 }

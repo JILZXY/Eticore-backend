@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsInt,
@@ -9,6 +10,12 @@ import {
 } from 'class-validator';
 
 export class ActualizarPerfilDto {
+  @ApiPropertyOptional({
+    description: 'Nuevo nombre de visualización (2 a 80 caracteres)',
+    example: 'Aprendiz Actualizado',
+    minLength: 2,
+    maxLength: 80,
+  })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
@@ -19,6 +26,11 @@ export class ActualizarPerfilDto {
   })
   nombre_visualizacion?: string;
 
+  @ApiPropertyOptional({
+    description: 'Identificador de la ruta preferida (o null para limpiar)',
+    example: 1,
+    nullable: true,
+  })
   @IsOptional()
   @ValidateIf((obj: ActualizarPerfilDto) => obj.ruta_preferida_id !== null)
   @IsInt({ message: 'La ruta preferida debe ser un identificador entero' })
