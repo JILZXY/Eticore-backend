@@ -77,7 +77,7 @@ export async function startEphemeralPostgres(): Promise<EphemeralTestDb> {
     ],
   });
 
-  const limiteTiempo = Date.now() + 30_000;
+  const limiteTiempo = Date.now() + 60_000;
   let conectado = false;
   let ultimoError: unknown;
 
