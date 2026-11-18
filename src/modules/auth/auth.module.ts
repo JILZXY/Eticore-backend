@@ -5,11 +5,27 @@ import { SessionAuthGuard } from '../../common/guards/session-auth.guard.js';
 import { AuthDatabaseModule } from '../../database/auth-database.module.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
+import { TotpChallengeService } from './totp-challenge.service.js';
+import { TotpSetupService } from './totp-setup.service.js';
 
 @Module({
   imports: [AuthDatabaseModule],
   controllers: [AuthController],
-  providers: [AuthService, SessionAuthGuard, RolesGuard, OwnershipGuard],
-  exports: [AuthService, SessionAuthGuard, RolesGuard, OwnershipGuard],
+  providers: [
+    AuthService,
+    TotpSetupService,
+    TotpChallengeService,
+    SessionAuthGuard,
+    RolesGuard,
+    OwnershipGuard,
+  ],
+  exports: [
+    AuthService,
+    TotpSetupService,
+    TotpChallengeService,
+    SessionAuthGuard,
+    RolesGuard,
+    OwnershipGuard,
+  ],
 })
 export class AuthModule {}

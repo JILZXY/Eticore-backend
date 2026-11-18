@@ -20,6 +20,10 @@ import { AUTH_DATA_SOURCE } from '../../database/auth-database.module.js';
 import { AuditService } from '../../shared/audit/audit.service.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { RegistroDto } from './dto/registro.dto.js';
+import {
+  type RespuestaDesafio2fa,
+  TotpChallengeService,
+} from './totp-challenge.service.js';
 
 export interface UsuarioPublico {
   id: number;
@@ -31,20 +35,25 @@ export interface UsuarioPublico {
   creado_en: Date;
 }
 
-export interface ResultadoLogin {
-  valorCookie: string;
-  maxAgeMs: number;
-  usuario: UsuarioPublico;
-}
+export type ResultadoLogin =
+  | {
+      requiere_2fa: false;
+      valorCookie: string;
+      maxAgeMs: number;
+      usuario: UsuarioPublico;
+    }
+  | RespuestaDesafio2fa;
 
-interface FilaAuthUsuario {
-  id: number;
+interface FilaContextoAuth {
+  usuario_id: number;
   nombre_visualizacion: string;
   correo_normalizado: string;
   activo: boolean;
   ruta_preferida_id: number | null;
   creado_en: Date;
   verificador_argon2id: string;
+  tiene_2fa_confirmado: boolean;
+  exige_2fa_por_rol: boolean;
 }
 
 interface FilaUsuarioCreado {
@@ -75,6 +84,7 @@ export class AuthService {
     private readonly authDataSource: DataSource,
     private readonly auditService: AuditService,
     private readonly configService: ConfigService<AppConfiguration, true>,
+    private readonly totpChallengeService: TotpChallengeService,
   ) {}
 
   async registrar(dto: RegistroDto): Promise<UsuarioPublico> {
@@ -168,22 +178,11 @@ export class AuthService {
   async login(dto: LoginDto): Promise<ResultadoLogin> {
     const correoNormalizado = normalizarCorreo(dto.correo);
 
-    // La lectura de credencial ocurre exclusivamente en la conexion restringida authDataSource.
+    // La lectura de credencial/segundo_factor ocurre via funcion SECURITY DEFINER en authDataSource.
     const filas = (await this.authDataSource.query(
-      `SELECT
-         u.id,
-         u.nombre_visualizacion,
-         u.correo_normalizado,
-         u.activo,
-         u.ruta_preferida_id,
-         u.creado_en,
-         c.verificador_argon2id
-       FROM usuario u
-       INNER JOIN credencial c ON c.usuario_id = u.id
-       WHERE u.correo_normalizado = $1
-       LIMIT 1`,
+      `SELECT * FROM obtener_contexto_autenticacion_por_correo($1)`,
       [correoNormalizado],
-    )) as FilaAuthUsuario[];
+    )) as FilaContextoAuth[];
 
     const cuenta = filas[0];
     if (!cuenta) {
@@ -211,11 +210,11 @@ export class AuthService {
 
     if (!valida || !cuenta.activo) {
       await this.auditService.registrarFueraDeTransaccion({
-        actorId: cuenta.id,
+        actorId: cuenta.usuario_id,
         origenActor: 'usuario',
         accion: 'login_fallido',
         recursoTipo: 'sesion',
-        recursoId: String(cuenta.id),
+        recursoId: String(cuenta.usuario_id),
         resultado: 'rechazado',
         detalleMinimo: cuenta.activo
           ? 'credenciales_invalidas'
@@ -226,6 +225,11 @@ export class AuthService {
         'CREDENCIALES_INVALIDAS',
         'Credenciales inválidas',
       );
+    }
+
+    // Si tiene 2FA confirmado, emitir desafio de 5 min y responder 202 sin crear sesion.
+    if (cuenta.tiene_2fa_confirmado) {
+      return this.totpChallengeService.crearDesafio(cuenta.usuario_id);
     }
 
     const { valorCookie, hashBytes } = generarCredencialSesion();
@@ -241,7 +245,7 @@ export class AuthService {
       await queryRunner.query(
         `INSERT INTO sesion (token_hash, usuario_id, expira_en, verificado_2fa)
          VALUES ($1, $2, $3, FALSE)`,
-        [hashBytes, cuenta.id, expiraEn],
+        [hashBytes, cuenta.usuario_id, expiraEn],
       );
 
       const filasRoles = (await queryRunner.query(
@@ -250,25 +254,26 @@ export class AuthService {
          INNER JOIN rol r ON r.id = ur.rol_id
          WHERE ur.usuario_id = $1
          ORDER BY r.id`,
-        [cuenta.id],
+        [cuenta.usuario_id],
       )) as Array<{ codigo: RolCodigo }>;
 
       await this.auditService.registrar(queryRunner.manager, {
-        actorId: cuenta.id,
+        actorId: cuenta.usuario_id,
         origenActor: 'usuario',
         accion: 'login_exitoso',
         recursoTipo: 'sesion',
-        recursoId: String(cuenta.id),
+        recursoId: String(cuenta.usuario_id),
         resultado: 'exitoso',
       });
 
       await queryRunner.commitTransaction();
 
       return {
+        requiere_2fa: false,
         valorCookie,
         maxAgeMs,
         usuario: {
-          id: cuenta.id,
+          id: cuenta.usuario_id,
           nombre_visualizacion: cuenta.nombre_visualizacion,
           correo_normalizado: cuenta.correo_normalizado,
           activo: cuenta.activo,
