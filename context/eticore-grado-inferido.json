@@ -1,0 +1,866 @@
+{
+  "advertencia": "Grados inferidos del reporte/DDL. Donde el reporte no fija una cardinalidad minima (p. ej. 0..1 vs 1..1), se registra la minima inferida del DDL (NULL = 0, NOT NULL = 1) y se anota como inferida.",
+  "agregados_derivados_no_persistidos": [
+    {
+      "formula": "creditos del usuario sobre unidades obligatorias de su version_ruta inscrita",
+      "fuente": "inscripcion_ruta + ruta_unidad + credito_unidad",
+      "nombre": "progreso_ruta",
+      "regla": "RN-23"
+    },
+    {
+      "formula": "SUM(credito_unidad.puntos) global por cuenta",
+      "fuente": "credito_unidad",
+      "nombre": "saldo_puntos",
+      "regla": "RN-24"
+    },
+    {
+      "formula": "Derivado del saldo; umbrales 100 y 300",
+      "fuente": "credito_unidad",
+      "nombre": "rango",
+      "regla": "RN-24"
+    },
+    {
+      "formula": "Mejor puntuacion por (usuario, version_id) en [desde, hasta), promedio solo si participantes >= 5",
+      "fuente": "intento + membresia_grupo",
+      "nombre": "reporte_grupo",
+      "regla": "RN-13, RN-28"
+    }
+  ],
+  "archivo": "eticore-grado-inferido.json",
+  "convenciones": {
+    "cardinalidad": "min:max por lado, en formato 'origen_min..origen_max : destino_min..destino_max'. 0 = opcional, 1 = obligatorio, N = muchos, * = muchos sin limite declarado.",
+    "grado": "1:1 | 1:N | N:M | N:M temporal | 1:N interna (JSONB) | sin relacion",
+    "mecanismo": "Motor = PK/FK/UNIQUE/CHECK/trigger en PostgreSQL; Aplicacion = validacion en el backend NestJS; Ambos = transaccion + bloqueo + restriccion",
+    "via": "tabla asociativa cuando la relacion N:M se resuelve con tabla propia; null si es FK directa"
+  },
+  "descripcion": "Grado (cardinalidad) inferido de cada relacion del modelo Eticore, a partir del Reporte Tecnico de la Base de Datos (01 nov 2026) + Correccion 2026-11-10 y del DDL vigente de 31 tablas (eticore-postgres-ddl.sql). 'Grado' se usa aqui en el sentido de modelado ER: 1:1, 1:N, N:M y N:M temporal. No es una calificacion ni un nivel academico.",
+  "entidades": [
+    {
+      "agregado": "identidad",
+      "modelo": "relacional",
+      "notas": "Cuenta. correo_normalizado UNIQUE.",
+      "pk": "id INTEGER",
+      "tabla": "usuario"
+    },
+    {
+      "agregado": "identidad",
+      "modelo": "relacional",
+      "notas": "Verificador Argon2id, 1:1 con usuario. Acceso restringido.",
+      "pk": "usuario_id INTEGER",
+      "tabla": "credencial"
+    },
+    {
+      "agregado": "identidad",
+      "modelo": "relacional",
+      "notas": "TOTP 1:1 con usuario. Secreto AES-256-GCM, clave fuera de la BD. Correccion 2026-11-10.",
+      "pk": "usuario_id INTEGER",
+      "tabla": "segundo_factor"
+    },
+    {
+      "agregado": "identidad",
+      "modelo": "relacional",
+      "notas": "Sesion opaca; en BD solo el hash. verificado_2fa BOOLEAN.",
+      "pk": "token_hash BYTEA",
+      "tabla": "sesion"
+    },
+    {
+      "agregado": "identidad",
+      "modelo": "relacional",
+      "notas": "Desafio 2FA efimero, 5 min. Correccion 2026-11-10.",
+      "pk": "id BIGINT",
+      "tabla": "desafio_autenticacion"
+    },
+    {
+      "agregado": "identidad",
+      "modelo": "relacional",
+      "notas": "Catalogo fijo: APRENDIZ, ADMIN_CONTENIDO, ADMIN_TECNICO.",
+      "pk": "id SMALLINT",
+      "tabla": "rol"
+    },
+    {
+      "agregado": "identidad",
+      "modelo": "relacional",
+      "notas": "Asociativa N:M usuario-rol.",
+      "pk": "PK compuesta (usuario_id, rol_id)",
+      "tabla": "usuario_rol"
+    },
+    {
+      "agregado": "identidad",
+      "modelo": "relacional",
+      "notas": "Fila tecnica unica 'admin_tecnico_activo' (RN-29). Sin relaciones.",
+      "pk": "clave VARCHAR(40)",
+      "tabla": "guarda_integridad"
+    },
+    {
+      "agregado": "catalogo",
+      "modelo": "relacional",
+      "notas": "Catalogo tematico reutilizable.",
+      "pk": "id INTEGER",
+      "tabla": "tema"
+    },
+    {
+      "agregado": "catalogo",
+      "modelo": "relacional",
+      "notas": "Identidad educativa estable. tipo: aprende | normamatch | casotech.",
+      "pk": "id INTEGER",
+      "tabla": "unidad"
+    },
+    {
+      "agregado": "catalogo",
+      "modelo": "hibrido",
+      "notas": "Version de contenido. contenido JSONB. UNIQUE (unidad_id, numero) y UNIQUE (id, unidad_id).",
+      "pk": "id BIGINT",
+      "tabla": "version_unidad"
+    },
+    {
+      "agregado": "catalogo",
+      "modelo": "relacional",
+      "notas": "Revision de una version exacta, con huella SHA-256.",
+      "pk": "id BIGINT",
+      "tabla": "revision_editorial"
+    },
+    {
+      "agregado": "catalogo",
+      "modelo": "relacional",
+      "notas": "Referencia reutilizable.",
+      "pk": "id INTEGER",
+      "tabla": "fuente"
+    },
+    {
+      "agregado": "catalogo",
+      "modelo": "relacional",
+      "notas": "Edicion inmutable de una fuente.",
+      "pk": "id BIGINT",
+      "tabla": "fuente_version"
+    },
+    {
+      "agregado": "catalogo",
+      "modelo": "relacional",
+      "notas": "Asociativa N:M version_unidad-fuente_version, con clave local REF.",
+      "pk": "PK compuesta (version_id, clave_local)",
+      "tabla": "unidad_fuente"
+    },
+    {
+      "agregado": "rutas",
+      "modelo": "relacional",
+      "notas": "Ruta de aprendizaje (General, TI, ...).",
+      "pk": "id INTEGER",
+      "tabla": "ruta"
+    },
+    {
+      "agregado": "rutas",
+      "modelo": "relacional",
+      "notas": "Composicion versionada. UNIQUE (ruta_id, numero) y UNIQUE (id, ruta_id).",
+      "pk": "id BIGINT",
+      "tabla": "version_ruta"
+    },
+    {
+      "agregado": "rutas",
+      "modelo": "relacional",
+      "notas": "Asociativa N:M version_ruta-unidad, con orden y obligatoria.",
+      "pk": "PK compuesta (ruta_version_id, unidad_id)",
+      "tabla": "ruta_unidad"
+    },
+    {
+      "agregado": "rutas",
+      "modelo": "relacional",
+      "notas": "Inscripcion de un usuario a una version de ruta. UNIQUE (usuario_id, ruta_version_id).",
+      "pk": "id BIGINT",
+      "tabla": "inscripcion_ruta"
+    },
+    {
+      "agregado": "ejecucion",
+      "modelo": "hibrido",
+      "notas": "Ejecucion. recorrido JSONB. UNIQUE (usuario_id, unidad_id, numero).",
+      "pk": "id UUID",
+      "tabla": "intento"
+    },
+    {
+      "agregado": "ejecucion",
+      "modelo": "relacional",
+      "notas": "Primera finalizacion. puntos 10 o 20.",
+      "pk": "PK compuesta (usuario_id, unidad_id)",
+      "tabla": "credito_unidad"
+    },
+    {
+      "agregado": "gamificacion",
+      "modelo": "relacional",
+      "notas": "Definicion de insignia. 4 iniciales (codigos/criterios no definidos en el reporte).",
+      "pk": "id SMALLINT",
+      "tabla": "insignia"
+    },
+    {
+      "agregado": "gamificacion",
+      "modelo": "relacional",
+      "notas": "Concesion unica. Exactamente un origen: intento_origen_id XOR inscripcion_origen_id.",
+      "pk": "PK compuesta (usuario_id, insignia_id)",
+      "tabla": "usuario_insignia"
+    },
+    {
+      "agregado": "grupos",
+      "modelo": "relacional",
+      "notas": "Grupo administrativo. Nombre no unico globalmente.",
+      "pk": "id INTEGER",
+      "tabla": "grupo"
+    },
+    {
+      "agregado": "grupos",
+      "modelo": "relacional",
+      "notas": "Intervalo [ingreso, salida). Indice unico parcial anti-doble-apertura.",
+      "pk": "id BIGINT",
+      "tabla": "membresia_grupo"
+    },
+    {
+      "agregado": "evidencia",
+      "modelo": "relacional",
+      "notas": "Tipo: terminos | aviso_privacidad | consentimiento.",
+      "pk": "id INTEGER",
+      "tabla": "documento_legal"
+    },
+    {
+      "agregado": "evidencia",
+      "modelo": "relacional",
+      "notas": "Texto exacto inmutable + huella SHA-256. UNIQUE (documento_id, numero).",
+      "pk": "id BIGINT",
+      "tabla": "version_documento"
+    },
+    {
+      "agregado": "evidencia",
+      "modelo": "relacional",
+      "notas": "Evento de presentacion/decision. UNIQUE (usuario_id, clave_operacion).",
+      "pk": "id BIGINT",
+      "tabla": "evento_legal"
+    },
+    {
+      "agregado": "evidencia",
+      "modelo": "relacional",
+      "notas": "Bitacora de aplicacion, append-only para eticore_app. actor_id NULLable.",
+      "pk": "id BIGINT",
+      "tabla": "auditoria"
+    },
+    {
+      "agregado": "evidencia",
+      "modelo": "relacional",
+      "notas": "Bitacora a nivel de BD por triggers (6 tablas). Sin relaciones. Retencion 12 meses.",
+      "pk": "id BIGINT",
+      "tabla": "auditoria_bd"
+    },
+    {
+      "agregado": "evidencia",
+      "modelo": "relacional",
+      "notas": "Expediente minimo de solicitud de derechos. usuario_id NULLable.",
+      "pk": "id BIGINT",
+      "tabla": "solicitud_privacidad"
+    }
+  ],
+  "fecha_generacion": "2026-11-17",
+  "fuente": "Reporte Tecnico de la Base de Datos - Eticore, secciones 2.2 (relaciones), 2.5 (diccionario, 31 tablas) y 2.6 (integridad referencial y RN-01..RN-31); DDL workspace/your_files/eticore-postgres-ddl.sql",
+  "jsonb": [
+    {
+      "columna": "version_unidad.contenido",
+      "cota": "1 MiB",
+      "tipo_por_modulo": {
+        "aprende": "objetivo, secciones ordenadas, ejemplo, buenas practicas",
+        "casotech": "grafo finito: etapas, alternativas (ponderacion 0/1/2), transiciones",
+        "normamatch": "situaciones, opciones, clave de asociacion, explicacion"
+      },
+      "validacion": "JSON Schema por (tipo, esquema_version) en el backend antes de publicar"
+    },
+    {
+      "columna": "intento.recorrido",
+      "cota": "1 MiB",
+      "tipo_por_modulo": {
+        "aprende": "secciones visitadas",
+        "casotech": "decisiones confirmadas en orden",
+        "normamatch": "respuestas situacion_id -> opcion_id"
+      },
+      "validacion": "Contra la version fijada del intento; revision optimista"
+    }
+  ],
+  "motor": "PostgreSQL 18.6, modelo hibrido: relacional + JSONB solo en version_unidad.contenido e intento.recorrido (cota 1 MiB)",
+  "pendientes": [
+    "Codigos y criterios exactos de las 4 insignias iniciales (RN-25): no estan en el reporte ni en el DDL; no inventarlos.",
+    "Hash encadenado en auditoria_bd: decision diferida (C-04).",
+    "REQ-F-09, REQ-F-55 y REQ-F-61: no citados en los patrones A01-A58 del reporte; verificar en la especificacion rev 1.4."
+  ],
+  "proyecto": "Eticore",
+  "relaciones": [
+    {
+      "cardinalidad": "1..1 : 1..1",
+      "destino": "credencial",
+      "fk": "credencial.usuario_id -> usuario.id",
+      "grado": "1:1",
+      "id": "R01",
+      "mecanismo": "Motor",
+      "nombre": "usuario tiene credencial",
+      "nota": "PK de credencial es la FK. Separacion por seguridad, no por cardinalidad.",
+      "on_delete": "CASCADE (solo purga autorizada)",
+      "origen": "usuario",
+      "regla": "RN-17, RN-19",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..1 : 1..1",
+      "destino": "segundo_factor",
+      "fk": "segundo_factor.usuario_id -> usuario.id",
+      "grado": "1:1",
+      "id": "R02",
+      "mecanismo": "Motor",
+      "nombre": "usuario tiene segundo_factor",
+      "nota": "0..1 del lado usuario: el 2FA es opcional para aprendices. Correccion 2026-11-10.",
+      "on_delete": "CASCADE (solo purga autorizada)",
+      "origen": "usuario",
+      "regla": "C-01, C-02",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "sesion",
+      "fk": "sesion.usuario_id -> usuario.id",
+      "grado": "1:N",
+      "id": "R03",
+      "mecanismo": "Motor",
+      "nombre": "usuario tiene sesiones",
+      "nota": "Revocacion individual por sesion.",
+      "on_delete": "CASCADE (solo purga autorizada)",
+      "origen": "usuario",
+      "regla": "REQ-NF-10, RN-17",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "desafio_autenticacion",
+      "fk": "desafio_autenticacion.usuario_id -> usuario.id",
+      "grado": "1:N",
+      "id": "R04",
+      "mecanismo": "Motor",
+      "nombre": "usuario tiene desafios de autenticacion",
+      "nota": "Efimeros, 5 min. Correccion 2026-11-10.",
+      "on_delete": "CASCADE",
+      "origen": "usuario",
+      "regla": "C-03",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..* : 0..*",
+      "destino": "rol",
+      "fk": "usuario_rol.usuario_id -> usuario.id; usuario_rol.rol_id -> rol.id",
+      "grado": "N:M",
+      "id": "R05",
+      "mecanismo": "Motor",
+      "nombre": "usuario tiene roles",
+      "nota": "PK compuesta impide duplicar la pareja. Minimo 1 rol: APRENDIZ al registrarse.",
+      "on_delete": "CASCADE hacia usuario; RESTRICT hacia rol",
+      "origen": "usuario",
+      "regla": "RN-01, RN-02",
+      "via": "usuario_rol"
+    },
+    {
+      "cardinalidad": "0..1 : 0..*",
+      "destino": "ruta",
+      "fk": "usuario.ruta_preferida_id -> ruta.id",
+      "grado": "N:1",
+      "id": "R06",
+      "mecanismo": "Motor",
+      "nombre": "usuario prefiere ruta",
+      "nota": "Preferencia, no permiso ni inscripcion.",
+      "on_delete": "SET NULL",
+      "origen": "usuario",
+      "regla": "RN-08",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "version_unidad",
+      "fk": "version_unidad.tema_id -> tema.id",
+      "grado": "1:N",
+      "id": "R07",
+      "mecanismo": "Motor",
+      "nombre": "tema clasifica versiones",
+      "nota": "El tema vive en la version, no en la unidad: puede cambiar entre ediciones.",
+      "on_delete": "RESTRICT",
+      "origen": "tema",
+      "regla": "RN-08",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "version_unidad",
+      "fk": "version_unidad.unidad_id -> unidad.id",
+      "grado": "1:N",
+      "id": "R08",
+      "mecanismo": "Motor",
+      "nombre": "unidad tiene versiones",
+      "nota": "UNIQUE (unidad_id, numero). La unidad sobrevive a sus revisiones.",
+      "on_delete": "RESTRICT",
+      "origen": "unidad",
+      "regla": "RN-18, RN-26",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..1 : 0..1",
+      "destino": "version_unidad",
+      "fk": "unidad.version_publicada_id + unidad.id -> version_unidad(id, unidad_id) (FK compuesta)",
+      "grado": "N:1",
+      "id": "R09",
+      "mecanismo": "Motor",
+      "nombre": "unidad apunta a su version publicada",
+      "nota": "Puntero opcional (NULL si no hay publicacion). La FK compuesta impide apuntar a una version de otra unidad.",
+      "on_delete": "NO ACTION (retirar el puntero antes de purgar)",
+      "origen": "unidad",
+      "regla": "RN-09",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "revision_editorial",
+      "fk": "revision_editorial.version_id -> version_unidad.id",
+      "grado": "1:N",
+      "id": "R10",
+      "mecanismo": "Motor",
+      "nombre": "version_unidad tiene revisiones editoriales",
+      "nota": "Varias revisiones no se sobrescriben; publicar exige una aprobada con la huella exacta.",
+      "on_delete": "CASCADE (solo purga autorizada de la version)",
+      "origen": "version_unidad",
+      "regla": "RN-26",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "revision_editorial",
+      "fk": "revision_editorial.revisor_id -> usuario.id",
+      "grado": "1:N",
+      "id": "R11",
+      "mecanismo": "Motor",
+      "nombre": "revision_editorial hecha por revisor",
+      "nota": "En el piloto se permite autorrevision con rol editorial.",
+      "on_delete": "RESTRICT",
+      "origen": "usuario",
+      "regla": "RN-26",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 1..*",
+      "destino": "fuente_version",
+      "fk": "fuente_version.fuente_id -> fuente.id",
+      "grado": "1:N",
+      "id": "R12",
+      "mecanismo": "Motor",
+      "nombre": "fuente tiene ediciones",
+      "nota": "Ediciones inmutables; cambiar una URL no reinterpreta una cita historica.",
+      "on_delete": "RESTRICT",
+      "origen": "fuente",
+      "regla": "RN-10",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..* : 0..*",
+      "destino": "fuente_version",
+      "fk": "unidad_fuente.version_id -> version_unidad.id; unidad_fuente.fuente_version_id -> fuente_version.id",
+      "grado": "N:M",
+      "id": "R13",
+      "mecanismo": "Motor + Aplicacion",
+      "nombre": "version_unidad cita ediciones de fuente",
+      "nota": "PK (version_id, clave_local). La clave local (REF1) es la que aparece dentro del JSONB.",
+      "on_delete": "CASCADE hacia version; RESTRICT hacia fuente_version",
+      "origen": "version_unidad",
+      "regla": "RN-10",
+      "via": "unidad_fuente"
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "version_ruta",
+      "fk": "version_ruta.ruta_id -> ruta.id",
+      "grado": "1:N",
+      "id": "R14",
+      "mecanismo": "Motor",
+      "nombre": "ruta tiene versiones de ruta",
+      "nota": "UNIQUE (ruta_id, numero).",
+      "on_delete": "RESTRICT",
+      "origen": "ruta",
+      "regla": "RN-23",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..1 : 0..1",
+      "destino": "version_ruta",
+      "fk": "ruta.version_actual_id + ruta.id -> version_ruta(id, ruta_id) (FK compuesta)",
+      "grado": "N:1",
+      "id": "R15",
+      "mecanismo": "Motor",
+      "nombre": "ruta apunta a su version actual",
+      "nota": "Puntero opcional. Una composicion publicada y asignada no se modifica retroactivamente.",
+      "on_delete": "NO ACTION",
+      "origen": "ruta",
+      "regla": "RN-23",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..* : 0..*",
+      "destino": "unidad",
+      "fk": "ruta_unidad.ruta_version_id -> version_ruta.id; ruta_unidad.unidad_id -> unidad.id",
+      "grado": "N:M",
+      "id": "R16",
+      "mecanismo": "Motor",
+      "nombre": "version_ruta incluye unidades",
+      "nota": "PK (ruta_version_id, unidad_id) + UNIQUE (ruta_version_id, orden). La composicion oficial vive solo aqui; no hay lista ruta_ids en ningun otro sitio.",
+      "on_delete": "CASCADE hacia version_ruta; RESTRICT hacia unidad",
+      "origen": "version_ruta",
+      "regla": "RN-23",
+      "via": "ruta_unidad"
+    },
+    {
+      "cardinalidad": "0..* : 0..*",
+      "destino": "version_ruta",
+      "fk": "inscripcion_ruta.usuario_id -> usuario.id; inscripcion_ruta.ruta_version_id -> version_ruta.id",
+      "grado": "N:M",
+      "id": "R17",
+      "mecanismo": "Motor",
+      "nombre": "usuario se inscribe a versiones de ruta",
+      "nota": "UNIQUE (usuario_id, ruta_version_id). Cambiar de ruta crea otra inscripcion; no migra el progreso.",
+      "on_delete": "RESTRICT",
+      "origen": "usuario",
+      "regla": "RN-23",
+      "via": "inscripcion_ruta"
+    },
+    {
+      "cardinalidad": "0..1 : 0..1",
+      "destino": "inscripcion_ruta",
+      "fk": "inscripcion_ruta.migrada_de_id + usuario_id -> inscripcion_ruta(id, usuario_id)",
+      "grado": "N:1",
+      "id": "R18",
+      "mecanismo": "Motor",
+      "nombre": "inscripcion migra de otra inscripcion",
+      "nota": "Autorreferencia. CHECK migrada_de_id <> id. Migracion explicita y trazable, nunca automatica.",
+      "on_delete": "RESTRICT",
+      "origen": "inscripcion_ruta",
+      "regla": "RN-23",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "intento",
+      "fk": "intento.usuario_id -> usuario.id",
+      "grado": "1:N",
+      "id": "R19",
+      "mecanismo": "Motor",
+      "nombre": "usuario ejecuta intentos",
+      "nota": "El intento es evidencia; no se borra en cadena al eliminar un perfil.",
+      "on_delete": "RESTRICT",
+      "origen": "usuario",
+      "regla": "RN-27",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "intento",
+      "fk": "intento.unidad_id -> unidad.id",
+      "grado": "1:N",
+      "id": "R20",
+      "mecanismo": "Motor",
+      "nombre": "unidad recibe intentos",
+      "nota": "UNIQUE (usuario_id, unidad_id, numero): ordinal por usuario y unidad.",
+      "on_delete": "RESTRICT",
+      "origen": "unidad",
+      "regla": "RN-27",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "intento",
+      "fk": "intento(version_id, unidad_id) -> version_unidad(id, unidad_id) (FK compuesta)",
+      "grado": "1:N",
+      "id": "R21",
+      "mecanismo": "Motor",
+      "nombre": "version_unidad es ejecutada en intentos",
+      "nota": "El intento queda fijado a la version exacta que curso, aunque se publique otra.",
+      "on_delete": "RESTRICT",
+      "origen": "version_unidad",
+      "regla": "RN-27",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..* : 0..*",
+      "destino": "unidad",
+      "fk": "intento.usuario_id + intento.unidad_id (ver R19/R20)",
+      "grado": "N:M",
+      "id": "R22",
+      "mecanismo": "Motor",
+      "nombre": "usuario y unidad se relacionan por intentos (con repeticion)",
+      "nota": "N:M con repeticion: un usuario puede intentar la misma unidad varias veces (numero distinto). No es la relacion de credito (R23), que es unica.",
+      "on_delete": "RESTRICT",
+      "origen": "usuario",
+      "regla": "RN-27",
+      "via": "intento"
+    },
+    {
+      "cardinalidad": "0..* : 0..*",
+      "destino": "unidad",
+      "fk": "credito_unidad.usuario_id -> usuario.id; credito_unidad.unidad_id -> unidad.id",
+      "grado": "N:M",
+      "id": "R23",
+      "mecanismo": "Motor",
+      "nombre": "usuario acredita unidades (primera finalizacion)",
+      "nota": "PK (usuario_id, unidad_id): maximo un credito por pareja. Puntos 10 (Aprende) o 20 (NormaMatch/CasoTech).",
+      "on_delete": "RESTRICT",
+      "origen": "usuario",
+      "regla": "RN-06",
+      "via": "credito_unidad"
+    },
+    {
+      "cardinalidad": "1..1 : 0..1",
+      "destino": "credito_unidad",
+      "fk": "credito_unidad(intento_origen_id, usuario_id, unidad_id) -> intento(id, usuario_id, unidad_id) (FK compuesta)",
+      "grado": "1:1",
+      "id": "R24",
+      "mecanismo": "Motor",
+      "nombre": "credito proviene de un intento",
+      "nota": "Un intento es origen de, como maximo, un credito (el de primera finalizacion).",
+      "on_delete": "RESTRICT",
+      "origen": "intento",
+      "regla": "RN-06",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..* : 0..*",
+      "destino": "insignia",
+      "fk": "usuario_insignia.usuario_id -> usuario.id; usuario_insignia.insignia_id -> insignia.id",
+      "grado": "N:M",
+      "id": "R25",
+      "mecanismo": "Motor",
+      "nombre": "usuario obtiene insignias",
+      "nota": "PK (usuario_id, insignia_id): cada insignia, una sola vez por cuenta.",
+      "on_delete": "RESTRICT",
+      "origen": "usuario",
+      "regla": "RN-07, RN-25",
+      "via": "usuario_insignia"
+    },
+    {
+      "cardinalidad": "0..1 : 0..*",
+      "destino": "usuario_insignia",
+      "fk": "usuario_insignia(intento_origen_id, usuario_id) -> intento(id, usuario_id)",
+      "grado": "1:N",
+      "id": "R26",
+      "mecanismo": "Motor",
+      "nombre": "concesion de insignia por actividad",
+      "nota": "Origen opcional y excluyente con R27 (CHECK: exactamente uno de los dos origenes).",
+      "on_delete": "RESTRICT",
+      "origen": "intento",
+      "regla": "RN-25",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..1 : 0..*",
+      "destino": "usuario_insignia",
+      "fk": "usuario_insignia(inscripcion_origen_id, usuario_id) -> inscripcion_ruta(id, usuario_id)",
+      "grado": "1:N",
+      "id": "R27",
+      "mecanismo": "Motor",
+      "nombre": "concesion de insignia por ruta completa",
+      "nota": "Solo para insignia de ruta completa; exige ruta no vacia al 100%.",
+      "on_delete": "RESTRICT",
+      "origen": "inscripcion_ruta",
+      "regla": "RN-25",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "membresia_grupo",
+      "fk": "membresia_grupo.grupo_id -> grupo.id",
+      "grado": "1:N",
+      "id": "R28",
+      "mecanismo": "Motor",
+      "nombre": "grupo tiene membresias",
+      "nota": "Desactivar un grupo no borra su historial.",
+      "on_delete": "RESTRICT",
+      "origen": "grupo",
+      "regla": "RN-28",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..* : 0..*",
+      "destino": "grupo",
+      "fk": "membresia_grupo.usuario_id -> usuario.id; membresia_grupo.grupo_id -> grupo.id",
+      "grado": "N:M temporal",
+      "id": "R29",
+      "mecanismo": "Motor + Aplicacion",
+      "nombre": "usuario pertenece a grupos (temporal)",
+      "nota": "Intervalos [ingreso, salida), salida NULL = abierta. UNIQUE (grupo_id, usuario_id, ingreso) + indice unico parcial anti-doble-apertura. El solapamiento historico lo comprueba el servicio bajo bloqueo de grupo.",
+      "on_delete": "RESTRICT",
+      "origen": "usuario",
+      "regla": "RN-28",
+      "via": "membresia_grupo"
+    },
+    {
+      "cardinalidad": "1..1 : 1..*",
+      "destino": "version_documento",
+      "fk": "version_documento.documento_id -> documento_legal.id",
+      "grado": "1:N",
+      "id": "R30",
+      "mecanismo": "Motor",
+      "nombre": "documento_legal tiene versiones",
+      "nota": "UNIQUE (documento_id, numero). Texto exacto inmutable + huella SHA-256.",
+      "on_delete": "RESTRICT",
+      "origen": "documento_legal",
+      "regla": "RN-12",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "evento_legal",
+      "fk": "evento_legal.usuario_id -> usuario.id",
+      "grado": "1:N",
+      "id": "R31",
+      "mecanismo": "Motor",
+      "nombre": "usuario genera eventos legales",
+      "nota": "UNIQUE (usuario_id, clave_operacion): idempotencia del evento.",
+      "on_delete": "RESTRICT",
+      "origen": "usuario",
+      "regla": "RN-12",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "evento_legal",
+      "fk": "evento_legal.version_documento_id -> version_documento.id",
+      "grado": "1:N",
+      "id": "R32",
+      "mecanismo": "Motor",
+      "nombre": "version_documento es objeto de eventos legales",
+      "nota": "El evento refiere el texto exacto aceptado/mostrado, no el documento generico.",
+      "on_delete": "RESTRICT",
+      "origen": "version_documento",
+      "regla": "RN-12",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..* : 0..*",
+      "destino": "version_documento",
+      "fk": "evento_legal.usuario_id + evento_legal.version_documento_id (ver R31/R32)",
+      "grado": "N:M",
+      "id": "R33",
+      "mecanismo": "Motor",
+      "nombre": "usuario y version_documento se relacionan por eventos (consentimiento)",
+      "nota": "N:M por eventos: consentir, retirar y volver a consentir son hechos distintos. Estado efectivo = evento mas reciente por finalidad.",
+      "on_delete": "RESTRICT",
+      "origen": "usuario",
+      "regla": "RN-12",
+      "via": "evento_legal"
+    },
+    {
+      "cardinalidad": "0..1 : 0..*",
+      "destino": "auditoria",
+      "fk": "auditoria.actor_id -> usuario.id",
+      "grado": "1:N",
+      "id": "R34",
+      "mecanismo": "Motor",
+      "nombre": "usuario protagoniza eventos de auditoria",
+      "nota": "actor_id NULLable; origen_actor explica el nulo ('sistema' o 'cuenta_suprimida'). recurso_id es polimorfico (sin FK universal), validado en aplicacion.",
+      "on_delete": "SET NULL (solo tras supresion autorizada)",
+      "origen": "usuario",
+      "regla": "RN-12",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..1 : 0..*",
+      "destino": "solicitud_privacidad",
+      "fk": "solicitud_privacidad.usuario_id -> usuario.id",
+      "grado": "1:N",
+      "id": "R35",
+      "mecanismo": "Motor",
+      "nombre": "usuario tiene solicitudes de privacidad",
+      "nota": "usuario_id NULLable: la solicitud puede existir sin cuenta asociada.",
+      "on_delete": "SET NULL (bajo flujo autorizado)",
+      "origen": "usuario",
+      "regla": "LEG-02",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..0 : 0..0",
+      "destino": null,
+      "fk": null,
+      "grado": "sin relacion",
+      "id": "R36",
+      "mecanismo": "Motor (triggers)",
+      "nombre": "auditoria_bd no tiene relaciones",
+      "nota": "Tabla append-only llenada por registrar_auditoria_bd() desde 6 triggers. registro_id es TEXT libre (no FK), para sobrevivir a la purga del registro original. No se audita a si misma.",
+      "on_delete": null,
+      "origen": "auditoria_bd",
+      "regla": "C-04",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..0 : 0..0",
+      "destino": null,
+      "fk": null,
+      "grado": "sin relacion",
+      "id": "R37",
+      "mecanismo": "Ambos",
+      "nombre": "guarda_integridad no tiene relaciones",
+      "nota": "Fila unica 'admin_tecnico_activo' como semaforo transaccional (SELECT ... FOR UPDATE).",
+      "on_delete": null,
+      "origen": "guarda_integridad",
+      "regla": "RN-29",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 1..*",
+      "destino": "version_unidad.contenido (JSONB)",
+      "fk": null,
+      "grado": "1:N interna (JSONB)",
+      "id": "R38",
+      "mecanismo": "Aplicacion",
+      "nombre": "version_unidad contiene secciones/situaciones/etapas (JSONB interno)",
+      "nota": "Contenido acotado (1 MiB) por modulo: Aprende = secciones ordenadas; NormaMatch = situaciones/opciones; CasoTech = grafo de etapas/alternativas. Claves internas unicas, validadas por el validador de contenido, no por FK.",
+      "on_delete": null,
+      "origen": "version_unidad",
+      "regla": "RN-15, RN-18",
+      "via": null
+    },
+    {
+      "cardinalidad": "1..1 : 0..*",
+      "destino": "intento.recorrido (JSONB)",
+      "fk": null,
+      "grado": "1:N interna (JSONB)",
+      "id": "R39",
+      "mecanismo": "Aplicacion",
+      "nombre": "intento registra su recorrido (JSONB interno)",
+      "nota": "Recorrido acotado (1 MiB): visitas, asociaciones o decisiones confirmadas. Exclusivo del intento; no se reutiliza ni se consulta por analitica.",
+      "on_delete": null,
+      "origen": "intento",
+      "regla": "RN-05, RN-20",
+      "via": null
+    },
+    {
+      "cardinalidad": "0..* : 0..*",
+      "destino": "intento",
+      "fk": null,
+      "grado": "N:M derivada",
+      "id": "R40",
+      "mecanismo": "Aplicacion (SQL con CTE + EXISTS)",
+      "nombre": "grupo se reporta desde intentos (derivada, sin tabla)",
+      "nota": "El reporte no es una relacion persistida: se calcula por periodo [desde, hasta) con mejor nota por (usuario, version_id). No crear tabla de reportes en v1.0.",
+      "on_delete": null,
+      "origen": "grupo",
+      "regla": "RN-13, RN-28",
+      "via": "membresia_grupo + intento (consulta A50)"
+    }
+  ],
+  "version_modelo": "31 tablas (28 del reporte + segundo_factor, desafio_autenticacion, auditoria_bd)",
+  "despliegue": {
+    "docker": true,
+    "decision": "Docker + Docker Compose como entorno estandar (equipo, 2026-11-17). La misma imagen de la API corre en desarrollo, tests y despliegue.",
+    "servicios": {
+      "api": "NestJS, un proceso, puerto 3000, depends_on db sano y migrate terminado",
+      "db": "postgres:18.6 pinneado, volumen nombrado pgdata, puerto 5432 no publicado fuera de la red interna de Compose",
+      "migrate": "misma imagen que api, perfil efimero; corre las migraciones antes de arrancar api",
+      "db-test": "postgres:18.6 desechable para tests de integracion/concurrencia, nunca la BD de desarrollo"
+    },
+    "reglas": [
+      "Sin secretos en la imagen ni en docker-compose.yml; llegan por .env / gestor de secretos",
+      "Roles de BD (eticore_app, eticore_auth, etc.) se aprovisionan fuera de la app, no en el contenedor api",
+      "docker compose down sin -v no borra datos; down -v solo en desarrollo local",
+      "Sin Redis, sin replicas, sin segundo motor en v1.0"
+    ]
+  }
+}
