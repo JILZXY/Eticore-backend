@@ -18,6 +18,7 @@ import { normalizarCorreo } from '../../common/utils/normalizacion-correo.js';
 import type { AppConfiguration } from '../../config/configuration.js';
 import type { AuditService } from '../../shared/audit/audit.service.js';
 import { AuthService } from './auth.service.js';
+import type { TotpChallengeService } from './totp-challenge.service.js';
 
 function crearConfigMock(): ConfigService<AppConfiguration, true> {
   return {
@@ -98,6 +99,7 @@ describe('AuthService y Guards (unit)', () => {
       authDataSource,
       auditService,
       crearConfigMock(),
+      {} as TotpChallengeService,
     );
 
     await expect(
@@ -126,13 +128,15 @@ describe('AuthService y Guards (unit)', () => {
 
     const authQueryMock = vi.fn().mockResolvedValue([
       {
-        id: 7,
+        usuario_id: 7,
         nombre_visualizacion: 'Aprendiz',
         correo_normalizado: 'aprendiz@eticore.edu.mx',
         activo: true,
         ruta_preferida_id: null,
         creado_en: new Date(),
         verificador_argon2id: verificador,
+        tiene_2fa_confirmado: false,
+        exige_2fa_por_rol: false,
       },
     ]);
     const authDataSource = {
@@ -150,6 +154,7 @@ describe('AuthService y Guards (unit)', () => {
       authDataSource,
       auditService,
       crearConfigMock(),
+      {} as TotpChallengeService,
     );
 
     await expect(
@@ -172,7 +177,7 @@ describe('AuthService y Guards (unit)', () => {
     );
   });
 
-  it('SessionAuthGuard rechaza sesiones expiradas por inactividad (>30 min) y vida absoluta (>8 h)', async () => {
+  it('SessionAuthGuard rechaza sesiones expiradas y sesiones admin sin verificado_2fa', async () => {
     const { valorCookie } = generarCredencialSesion();
     const reflector = {
       getAllAndOverride: vi.fn().mockReturnValue(false),
@@ -235,6 +240,30 @@ describe('AuthService y Guards (unit)', () => {
     await expect(guard.canActivate(contexto)).rejects.toMatchObject({
       status: HttpStatus.UNAUTHORIZED,
       codigo: 'SESION_EXPIRADA',
+    });
+
+    // Sesión admin vigente pero con verificado_2fa = false -> 403 SEGUNDO_FACTOR_REQUERIDO
+    queryMock
+      .mockResolvedValueOnce([
+        {
+          usuario_id: 10,
+          creada_en: new Date(ahora - 60_000),
+          ultima_actividad: new Date(ahora - 30_000),
+          expira_en: new Date(ahora + 7 * 3_600_000),
+          revocada_en: null,
+          verificado_2fa: false,
+          activo: true,
+          nombre_visualizacion: 'Admin',
+          correo_normalizado: 'admin@eticore.edu.mx',
+          ruta_preferida_id: null,
+        },
+      ])
+      .mockResolvedValueOnce([[{ usuario_id: 10 }], 1])
+      .mockResolvedValueOnce([{ codigo: 'ADMIN_TECNICO' }]);
+
+    await expect(guard.canActivate(contexto)).rejects.toMatchObject({
+      status: HttpStatus.FORBIDDEN,
+      codigo: 'SEGUNDO_FACTOR_REQUERIDO',
     });
   });
 

@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { buildPostgresDataSourceOptions } from '../../src/config/database.config.js';
 import { Baseline31Tablas1731888000001 } from '../../src/database/migrations/1731888000001-Baseline31Tablas.js';
+import { FuncionesSeguridadAuth2fa1731888000002 } from '../../src/database/migrations/1731888000002-FuncionesSeguridadAuth2fa.js';
 import { runInitialSeeds } from '../../src/database/seeds/initial.seed.js';
 
 export interface EphemeralTestDb {
@@ -70,7 +71,10 @@ export async function startEphemeralPostgres(): Promise<EphemeralTestDb> {
 
   const dataSource = new DataSource({
     ...baseOptions,
-    migrations: [Baseline31Tablas1731888000001],
+    migrations: [
+      Baseline31Tablas1731888000001,
+      FuncionesSeguridadAuth2fa1731888000002,
+    ],
   });
 
   const limiteTiempo = Date.now() + 30_000;
