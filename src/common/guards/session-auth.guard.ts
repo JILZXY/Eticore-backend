@@ -8,7 +8,11 @@ import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { DataSource } from 'typeorm';
 import type { AppConfiguration } from '../../config/configuration.js';
-import type { RequestConUsuario, UsuarioAutenticado } from '../decorators/current-user.decorator.js';
+import { ALLOW_UNVERIFIED_2FA_KEY } from '../decorators/allow-unverified-2fa.decorator.js';
+import type {
+  RequestConUsuario,
+  UsuarioAutenticado,
+} from '../decorators/current-user.decorator.js';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 import type { RolCodigo } from '../decorators/roles.decorator.js';
 import { DomainError } from '../errors/domain.error.js';
@@ -53,7 +57,26 @@ export class SessionAuthGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<RequestConUsuario>();
-    request.user = await this.validarSesionDeRequest(request);
+    const usuario = await this.validarSesionDeRequest(request);
+
+    const permiteSin2fa = this.reflector.getAllAndOverride<boolean>(
+      ALLOW_UNVERIFIED_2FA_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    const esAdmin =
+      usuario.roles.includes('ADMIN_TECNICO') ||
+      usuario.roles.includes('ADMIN_CONTENIDO');
+
+    if (esAdmin && !usuario.verificado2fa && !permiteSin2fa) {
+      throw new DomainError(
+        HttpStatus.FORBIDDEN,
+        'SEGUNDO_FACTOR_REQUERIDO',
+        'Las cuentas administrativas requieren sesión con segundo factor verificado',
+      );
+    }
+
+    request.user = usuario;
     return true;
   }
 
