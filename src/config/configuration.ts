@@ -38,6 +38,8 @@ export const envSchema = z.object({
   SESSION_COOKIE_SECURE: booleanStringSchema.default(true),
   SESSION_IDLE_TIMEOUT_MINUTES: z.coerce.number().int().min(1).max(480).default(30),
   SESSION_ABSOLUTE_TIMEOUT_HOURS: z.coerce.number().int().min(1).max(24).default(8),
+  AUTH_RATE_LIMIT_TTL_SECONDS: z.coerce.number().int().min(1).max(3600).default(60),
+  AUTH_RATE_LIMIT_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(1000).default(20),
   CORS_ORIGIN: z.string().trim().min(1),
 });
 
@@ -61,6 +63,8 @@ export interface AppConfiguration {
     sessionCookieSecure: boolean;
     sessionIdleTimeoutMinutes: number;
     sessionAbsoluteTimeoutHours: number;
+    authRateLimitTtlSeconds: number;
+    authRateLimitMaxAttempts: number;
     corsOrigin: string;
   };
 }
@@ -110,6 +114,8 @@ export function configuration(): AppConfiguration {
       sessionCookieSecure: validated.SESSION_COOKIE_SECURE,
       sessionIdleTimeoutMinutes: validated.SESSION_IDLE_TIMEOUT_MINUTES,
       sessionAbsoluteTimeoutHours: validated.SESSION_ABSOLUTE_TIMEOUT_HOURS,
+      authRateLimitTtlSeconds: validated.AUTH_RATE_LIMIT_TTL_SECONDS,
+      authRateLimitMaxAttempts: validated.AUTH_RATE_LIMIT_MAX_ATTEMPTS,
       corsOrigin: validated.CORS_ORIGIN,
     },
   };

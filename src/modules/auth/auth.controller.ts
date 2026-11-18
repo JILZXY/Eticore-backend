@@ -16,6 +16,7 @@ import {
   type UsuarioAutenticado,
 } from '../../common/decorators/current-user.decorator.js';
 import { Public } from '../../common/decorators/public.decorator.js';
+import { AuthRateLimitGuard } from '../../common/guards/auth-rate-limit.guard.js';
 import { SessionAuthGuard } from '../../common/guards/session-auth.guard.js';
 import type { AppConfiguration } from '../../config/configuration.js';
 import { AuthService, type UsuarioPublico } from './auth.service.js';
@@ -52,6 +53,7 @@ export class AuthController {
 
   @Post('login')
   @Public()
+  @UseGuards(AuthRateLimitGuard)
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
@@ -77,6 +79,7 @@ export class AuthController {
 
   @Post('2fa/verificar')
   @Public()
+  @UseGuards(AuthRateLimitGuard)
   @HttpCode(HttpStatus.OK)
   async verificar2fa(
     @Body() dto: Verificar2faDto,
@@ -97,7 +100,7 @@ export class AuthController {
   }
 
   @Post('2fa/iniciar')
-  @UseGuards(SessionAuthGuard)
+  @UseGuards(SessionAuthGuard, AuthRateLimitGuard)
   @AllowUnverified2fa()
   @HttpCode(HttpStatus.CREATED)
   iniciar2fa(
@@ -107,7 +110,7 @@ export class AuthController {
   }
 
   @Post('2fa/confirmar')
-  @UseGuards(SessionAuthGuard)
+  @UseGuards(SessionAuthGuard, AuthRateLimitGuard)
   @AllowUnverified2fa()
   @HttpCode(HttpStatus.OK)
   confirmar2fa(
@@ -118,7 +121,7 @@ export class AuthController {
   }
 
   @Delete('2fa')
-  @UseGuards(SessionAuthGuard)
+  @UseGuards(SessionAuthGuard, AuthRateLimitGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async desactivar2fa(
     @CurrentUser() usuario: UsuarioAutenticado,

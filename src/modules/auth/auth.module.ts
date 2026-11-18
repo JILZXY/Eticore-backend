@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthRateLimitGuard } from '../../common/guards/auth-rate-limit.guard.js';
 import { OwnershipGuard } from '../../common/guards/ownership.guard.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { SessionAuthGuard } from '../../common/guards/session-auth.guard.js';
@@ -18,6 +19,7 @@ import { TotpSetupService } from './totp-setup.service.js';
     SessionAuthGuard,
     RolesGuard,
     OwnershipGuard,
+    AuthRateLimitGuard,
   ],
   exports: [
     AuthService,
@@ -26,6 +28,7 @@ import { TotpSetupService } from './totp-setup.service.js';
     SessionAuthGuard,
     RolesGuard,
     OwnershipGuard,
+    AuthRateLimitGuard,
   ],
 })
 export class AuthModule {}
