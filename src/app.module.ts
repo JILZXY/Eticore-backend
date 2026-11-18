@@ -8,6 +8,7 @@ import { AttemptsModule } from './modules/attempts/attempts.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { CatalogModule } from './modules/catalog/catalog.module.js';
 import { GamificationModule } from './modules/gamification/gamification.module.js';
+import { RoutesModule } from './modules/routes/routes.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { AuditModule } from './shared/audit/audit.module.js';
 import { ValidationModule } from './shared/validation/validation.module.js';
@@ -27,6 +28,7 @@ import { ValidationModule } from './shared/validation/validation.module.js';
     CatalogModule,
     GamificationModule,
     AttemptsModule,
+    RoutesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
