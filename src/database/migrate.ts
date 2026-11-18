@@ -2,6 +2,7 @@ import { DataSource } from 'typeorm';
 import { configuration } from '../config/configuration.js';
 import { buildPostgresDataSourceOptions } from '../config/database.config.js';
 import { Baseline31Tablas1731888000001 } from './migrations/1731888000001-Baseline31Tablas.js';
+import { FuncionesSeguridadAuth2fa1731888000002 } from './migrations/1731888000002-FuncionesSeguridadAuth2fa.js';
 import { runInitialSeeds } from './seeds/initial.seed.js';
 
 async function runMigrations(): Promise<void> {
@@ -16,7 +17,10 @@ async function runMigrations(): Promise<void> {
 
   const dataSource = new DataSource({
     ...baseOptions,
-    migrations: [Baseline31Tablas1731888000001],
+    migrations: [
+      Baseline31Tablas1731888000001,
+      FuncionesSeguridadAuth2fa1731888000002,
+    ],
   });
 
   await dataSource.initialize();
