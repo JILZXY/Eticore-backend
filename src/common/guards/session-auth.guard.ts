@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { DataSource } from 'typeorm';
 import type { AppConfiguration } from '../../config/configuration.js';
-import type { RequestConUsuario } from '../decorators/current-user.decorator.js';
+import type { RequestConUsuario, UsuarioAutenticado } from '../decorators/current-user.decorator.js';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 import type { RolCodigo } from '../decorators/roles.decorator.js';
 import { DomainError } from '../errors/domain.error.js';
@@ -53,6 +53,35 @@ export class SessionAuthGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<RequestConUsuario>();
+    request.user = await this.validarSesionDeRequest(request);
+    return true;
+  }
+
+  async resolverUsuarioOpcional(
+    request: RequestConUsuario,
+  ): Promise<UsuarioAutenticado | undefined> {
+    const security = this.configService.get('security', { infer: true });
+    const valorCookie = extraerCookieDeCabecera(
+      request.cookies as Record<string, unknown> | undefined,
+      request.headers.cookie,
+      security.sessionCookieName,
+    );
+    if (!valorCookie) {
+      return undefined;
+    }
+
+    try {
+      const usuario = await this.validarSesionDeRequest(request);
+      request.user = usuario;
+      return usuario;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async validarSesionDeRequest(
+    request: RequestConUsuario,
+  ): Promise<UsuarioAutenticado> {
     const security = this.configService.get('security', { infer: true });
 
     const valorCookie = extraerCookieDeCabecera(
@@ -145,7 +174,7 @@ export class SessionAuthGuard implements CanActivate {
       [fila.usuario_id],
     )) as FilaRol[];
 
-    request.user = {
+    return {
       id: fila.usuario_id,
       nombreVisualizacion: fila.nombre_visualizacion,
       correoNormalizado: fila.correo_normalizado,
@@ -154,7 +183,5 @@ export class SessionAuthGuard implements CanActivate {
       verificado2fa: fila.verificado_2fa,
       hashSesion,
     };
-
-    return true;
   }
 }
