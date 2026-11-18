@@ -4,6 +4,9 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { configuration, validateEnv } from './config/configuration.js';
 import { DatabaseModule } from './database/database.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
+import { UsersModule } from './modules/users/users.module.js';
+import { AuditModule } from './shared/audit/audit.module.js';
 
 @Module({
   imports: [
@@ -13,6 +16,9 @@ import { DatabaseModule } from './database/database.module.js';
       validate: validateEnv,
     }),
     DatabaseModule,
+    AuditModule,
+    AuthModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -24,6 +24,13 @@ describe('Configuración de entorno y base de datos', () => {
     expect(validated.SESSION_COOKIE_SECURE).toBe(false);
   });
 
+  it('usa SESSION_COOKIE_SECURE=true por defecto si no se especifica', () => {
+    const sinCookieSecure = { ...sampleEnv };
+    delete (sinCookieSecure as Partial<typeof sampleEnv>).SESSION_COOKIE_SECURE;
+    const validated = validateEnv(sinCookieSecure);
+    expect(validated.SESSION_COOKIE_SECURE).toBe(true);
+  });
+
   it('rechaza cuando falta DATABASE_URL o TOTP_ENCRYPTION_KEY es inválida', () => {
     expect(() =>
       validateEnv({

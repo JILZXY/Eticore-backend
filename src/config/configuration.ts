@@ -34,7 +34,7 @@ export const envSchema = z.object({
       'TOTP_ENCRYPTION_KEY debe ser hexadecimal de 64 caracteres (32 bytes)',
     ),
   SESSION_COOKIE_NAME: z.string().trim().min(1).default('eticore_sid'),
-  SESSION_COOKIE_SECURE: booleanStringSchema.default(false),
+  SESSION_COOKIE_SECURE: booleanStringSchema.default(true),
   SESSION_IDLE_TIMEOUT_MINUTES: z.coerce.number().int().min(1).max(480).default(30),
   SESSION_ABSOLUTE_TIMEOUT_HOURS: z.coerce.number().int().min(1).max(24).default(8),
   CORS_ORIGIN: z.string().trim().min(1),
