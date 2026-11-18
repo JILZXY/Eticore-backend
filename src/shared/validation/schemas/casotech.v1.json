@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CasoTech v1",
+  "type": "object",
+  "required": ["etapas"],
+  "properties": {
+    "etapa_inicial_id": { "type": "string", "minLength": 1 },
+    "etapas": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "titulo": { "type": "string", "minLength": 1 },
+          "enunciado": { "type": "string", "minLength": 1 },
+          "contexto": { "type": "string" },
+          "terminal": { "type": "boolean" },
+          "alternativas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "texto", "ponderacion", "siguiente_etapa_id"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1 },
+                "texto": { "type": "string", "minLength": 1 },
+                "ponderacion": { "type": "integer", "enum": [0, 1, 2] },
+                "siguiente_etapa_id": { "type": "string", "minLength": 1 },
+                "explicacion": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

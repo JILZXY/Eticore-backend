@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NormaMatch v1",
+  "type": "object",
+  "required": ["situaciones"],
+  "properties": {
+    "opciones": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["id", "texto"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "texto": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "clave_asociacion": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "situaciones": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "explicacion"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "enunciado": { "type": "string", "minLength": 1 },
+          "texto": { "type": "string", "minLength": 1 },
+          "opciones": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "object",
+              "required": ["id", "texto"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1 },
+                "texto": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          "respuesta_correcta": { "type": "string", "minLength": 1 },
+          "explicacion": { "type": "string", "minLength": 1 },
+          "referencia_local": { "type": "string", "minLength": 1 },
+          "referencias_locales": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  }
+}

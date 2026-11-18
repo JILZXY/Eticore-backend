@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Recorrido de intento v1",
+  "type": "object",
+  "properties": {
+    "secciones_visitadas": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "confirmado": { "type": "boolean" },
+    "asociaciones": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "decisiones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["etapa_id", "alternativa_id"],
+        "properties": {
+          "etapa_id": { "type": "string", "minLength": 1 },
+          "alternativa_id": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
