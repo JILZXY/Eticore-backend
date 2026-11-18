@@ -4,11 +4,13 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { configuration, validateEnv } from './config/configuration.js';
 import { DatabaseModule } from './database/database.module.js';
+import { AdminModule } from './modules/admin/admin.module.js';
 import { AttemptsModule } from './modules/attempts/attempts.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { CatalogModule } from './modules/catalog/catalog.module.js';
 import { GamificationModule } from './modules/gamification/gamification.module.js';
 import { GroupsModule } from './modules/groups/groups.module.js';
+import { LegalModule } from './modules/legal/legal.module.js';
 import { ReportsModule } from './modules/reports/reports.module.js';
 import { RoutesModule } from './modules/routes/routes.module.js';
 import { UsersModule } from './modules/users/users.module.js';
@@ -33,6 +35,8 @@ import { ValidationModule } from './shared/validation/validation.module.js';
     RoutesModule,
     GroupsModule,
     ReportsModule,
+    AdminModule,
+    LegalModule,
   ],
   controllers: [AppController],
   providers: [AppService],

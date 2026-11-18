@@ -23,6 +23,7 @@ export const envSchema = z.object({
   ETICORE_API_DOMAIN: z.string().trim().min(1).optional(),
   DATABASE_URL: postgresUrlSchema,
   AUTH_DATABASE_URL: postgresUrlSchema.optional(),
+  AUDIT_DATABASE_URL: postgresUrlSchema.optional(),
   MIGRATION_DATABASE_URL: postgresUrlSchema.optional(),
   DB_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
   DB_SSL: booleanStringSchema.default(false),
@@ -49,6 +50,7 @@ export interface AppConfiguration {
   database: {
     url: string;
     authUrl: string;
+    auditUrl: string;
     migrationUrl: string;
     poolMax: number;
     ssl: boolean;
@@ -68,6 +70,9 @@ export function validateEnv(config: Record<string, unknown>): ValidatedEnv {
 
   if (normalizedConfig.AUTH_DATABASE_URL === '') {
     delete normalizedConfig.AUTH_DATABASE_URL;
+  }
+  if (normalizedConfig.AUDIT_DATABASE_URL === '') {
+    delete normalizedConfig.AUDIT_DATABASE_URL;
   }
   if (normalizedConfig.MIGRATION_DATABASE_URL === '') {
     delete normalizedConfig.MIGRATION_DATABASE_URL;
@@ -94,6 +99,7 @@ export function configuration(): AppConfiguration {
     database: {
       url: validated.DATABASE_URL,
       authUrl: validated.AUTH_DATABASE_URL ?? validated.DATABASE_URL,
+      auditUrl: validated.AUDIT_DATABASE_URL ?? validated.DATABASE_URL,
       migrationUrl: validated.MIGRATION_DATABASE_URL ?? validated.DATABASE_URL,
       poolMax: validated.DB_POOL_MAX,
       ssl: validated.DB_SSL,
